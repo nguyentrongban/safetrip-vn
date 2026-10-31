@@ -46,15 +46,15 @@ export default function SearchTab() {
   return (
     <div className="space-y-5">
       <section className="space-y-3">
-        <h3 className="font-bold text-white flex items-center gap-2"><Search className="w-4 h-4 text-blue-400" /> Tra cứu biển số / nhà xe / SĐT</h3>
-        <input className={inputCls} placeholder="Ví dụ: 51B-284.71 hoặc 0903124771" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <h3 className="font-black text-white text-lg flex items-center gap-2"><Search className="w-5 h-5 text-blue-400" /> Xe này có lừa đảo không?</h3>
+        <input className={inputCls} placeholder="Gõ biển số xe hoặc số điện thoại" value={query} onChange={(e) => setQuery(e.target.value)} />
         {query.trim() && (hits.length > 0 ? hits.map((h) => (
           <div key={h.id} className="bg-red-500/10 border-2 border-red-500 rounded-2xl p-4 space-y-1">
             <p className="text-red-400 font-black flex items-center gap-2"><ShieldAlert className="w-5 h-5" /> CẢNH BÁO {h.risk === 'CRITICAL' ? 'CỰC KỲ NGUY HIỂM' : 'RỦI RO CAO'}</p>
             <p className="text-white font-bold text-lg">{h.plate} — {h.company}</p>
             <p className="text-sm text-slate-200">SĐT: {h.phone} · Bị báo cáo: {h.reports} lần · Gặp gần nhất: {h.lastSeen}</p>
             <p className="text-sm text-red-200">{h.reason}</p>
-            <p className="text-sm font-bold text-white pt-1">KHUYẾN CÁO: Không lên xe này. Chụp lại biển số gửi người thân, gọi 113 nếu bị ép lên xe.</p>
+            <p className="text-base font-black text-white pt-1">⛔ ĐỪNG LÊN XE NÀY. Bị ép lên xe → gọi 113.</p>
           </div>
         )) : (
           <div className="bg-emerald-500/10 border border-emerald-500/50 rounded-2xl p-4 text-emerald-200 text-sm flex gap-2">
@@ -64,14 +64,14 @@ export default function SearchTab() {
       </section>
 
       <section className="bg-panel rounded-2xl p-4 border border-slate-700/60 space-y-3">
-        <h3 className="font-bold text-white">Bảng kiểm 5 giây — bạn có đang gặp nguy hiểm?</h3>
+        <h3 className="font-black text-white text-lg">Bạn có đang gặp nguy hiểm?</h3>
+        <p className="text-sm text-slate-400 -mt-1">Trả lời 5 câu. CÓ từ 2 câu trở lên = nguy hiểm.</p>
         {CHECKLIST_QUESTIONS.map((q, i) => (
           <div key={q.id} className="bg-slate-900 rounded-xl p-3 border border-slate-700/60">
-            <p className="text-sm text-white font-medium">{i + 1}. {q.text}</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">{q.hint}</p>
-            <div className="flex gap-2 mt-2">
-              <button onClick={() => setAnswers({ ...answers, [q.id]: true })} className={`flex-1 py-1.5 rounded-lg text-sm font-bold ${answers[q.id] === true ? 'bg-red-500 text-white' : 'bg-slate-800 text-slate-300'}`}>CÓ ⚠️</button>
-              <button onClick={() => setAnswers({ ...answers, [q.id]: false })} className={`flex-1 py-1.5 rounded-lg text-sm font-bold ${answers[q.id] === false ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}>KHÔNG</button>
+            <p className="text-base text-white font-semibold">{i + 1}. {q.text}</p>
+            <div className="flex gap-2 mt-2.5">
+              <button onClick={() => setAnswers({ ...answers, [q.id]: true })} className={`flex-1 py-3 rounded-xl text-base font-black ${answers[q.id] === true ? 'bg-red-500 text-white' : 'bg-slate-800 text-slate-300'}`}>CÓ ⚠️</button>
+              <button onClick={() => setAnswers({ ...answers, [q.id]: false })} className={`flex-1 py-3 rounded-xl text-base font-black ${answers[q.id] === false ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}>KHÔNG</button>
             </div>
           </div>
         ))}

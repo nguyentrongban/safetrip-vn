@@ -14,14 +14,19 @@ const borderIcon = L.divIcon({
 });
 
 /**
- * Tile providers in failover order. CARTO (Fastly CDN) first because
- * tile.openstreetmap.org is often slow/blocked on VN mobile carriers —
- * that was the "black map" bug: Leaflet loaded, tiles never arrived.
+ * Tile providers — all verified by downloading real tiles and VIEWING them
+ * (2026-10-31). Lessons: tile.openstreetmap.org returns HTTP 418
+ * "Access blocked" tiles for many clients (v1.0 black map), and CARTO
+ * basemaps now serves "API KEY REQUIRED" watermark placeholders (v1.1).
+ * Esri WorldStreetMap is a real Google-style street map (roads + Vietnamese
+ * labels) on the ArcGIS CDN: free, no key, no watermark.
  */
-const TILE_PROVIDERS = [
-  { name: 'CARTO Voyager', url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains: 'abcd', attribution: '&copy; OpenStreetMap &copy; CARTO' },
-  { name: 'OpenStreetMap', url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains: 'abc', attribution: '&copy; OpenStreetMap' },
-  { name: 'CARTO Dark', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', subdomains: 'abcd', attribution: '&copy; OpenStreetMap &copy; CARTO' },
+const STREET_PROVIDERS = [
+  { name: 'Esri Street', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', subdomains: undefined as string | undefined, attribution: 'Tiles &copy; Esri, OpenStreetMap contributors' },
+  { name: 'OSM HOT', url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', subdomains: 'abc', attribution: '&copy; OpenStreetMap contributors' },
+];
+const SATELLITE_PROVIDERS = [
+  { name: 'Esri Satellite', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains: undefined as string | undefined, attribution: 'Tiles &copy; Esri World Imagery' },
 ];
 
 function FollowUser({ lat, lng }: { lat: number | null; lng: number | null }) {
@@ -34,34 +39,40 @@ interface Props { lat: number | null; lng: number | null }
 
 export default function MapView({ lat, lng }: Props) {
   const center: [number, number] = lat !== null && lng !== null ? [lat, lng] : [14.0583, 108.2772];
+  const [mode, setMode] = useState<'street' | 'satellite'>('street');
   const [providerIdx, setProviderIdx] = useState(0);
   const [tilesLoaded, setTilesLoaded] = useState(0);
   const [showNoTilesHint, setShowNoTilesHint] = useState(false);
   const errorsRef = useRef(0);
   const loadedRef = useRef(0);
 
+  const providers = mode === 'street' ? STREET_PROVIDERS : SATELLITE_PROVIDERS;
+  const provider = providers[Math.min(providerIdx, providers.length - 1)];
+
+  const switchMode = (m: 'street' | 'satellite') => {
+    setMode(m); setProviderIdx(0); errorsRef.current = 0; loadedRef.current = 0; setTilesLoaded(0); setShowNoTilesHint(false);
+  };
+
   useEffect(() => {
     const t = window.setTimeout(() => { if (loadedRef.current === 0) setShowNoTilesHint(true); }, 8000);
     return () => clearTimeout(t);
-  }, [providerIdx]);
-
-  const provider = TILE_PROVIDERS[providerIdx];
+  }, [providerIdx, mode]);
 
   return (
-    <div className="relative rounded-2xl overflow-hidden border border-slate-700" style={{ height: 340 }}>
+    <div className="relative rounded-3xl overflow-hidden border border-slate-700 h-[340px] md:h-[440px] lg:h-[560px]">
       <style>{'@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,.5)}70%{box-shadow:0 0 0 14px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}} .leaflet-container{background:#0F172A}'}</style>
       <MapContainer center={center} zoom={lat ? 12 : 6} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
         <TileLayer
-          key={providerIdx}
+          key={`${mode}-${providerIdx}`}
           attribution={provider.attribution}
           url={provider.url}
-          subdomains={provider.subdomains}
+          {...(provider.subdomains ? { subdomains: provider.subdomains } : {})}
           eventHandlers={{
             tileload: () => { loadedRef.current += 1; setTilesLoaded(loadedRef.current); setShowNoTilesHint(false); },
             tileerror: () => {
               errorsRef.current += 1;
               // Current provider is not delivering: fail over to the next one.
-              if (loadedRef.current === 0 && errorsRef.current >= 5 && providerIdx < TILE_PROVIDERS.length - 1) {
+              if (loadedRef.current === 0 && errorsRef.current >= 5 && providerIdx < providers.length - 1) {
                 errorsRef.current = 0;
                 setProviderIdx(providerIdx + 1);
               }
@@ -89,6 +100,10 @@ export default function MapView({ lat, lng }: Props) {
           </Fragment>
         ))}
       </MapContainer>
+      <div className="absolute top-2 right-2 z-[500] flex rounded-xl overflow-hidden border border-slate-600 shadow-lg text-[11px] font-bold">
+        <button onClick={() => switchMode('street')} className={`px-2.5 py-1.5 ${mode === 'street' ? 'bg-blue-600 text-white' : 'bg-slate-900/90 text-slate-300'}`}>🗺️ Đường</button>
+        <button onClick={() => switchMode('satellite')} className={`px-2.5 py-1.5 ${mode === 'satellite' ? 'bg-blue-600 text-white' : 'bg-slate-900/90 text-slate-300'}`}>🛰️ Vệ tinh</button>
+      </div>
       {tilesLoaded === 0 && (
         <div className="absolute inset-x-0 bottom-0 z-[500] pointer-events-none">
           <p className={`text-center text-[11px] font-bold py-1.5 ${showNoTilesHint ? 'bg-red-600/90 text-white' : 'bg-slate-900/85 text-slate-300'}`}>
