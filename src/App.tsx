@@ -11,7 +11,7 @@ import { useGeolocation } from './hooks/useGeolocation';
 import { useAlarm } from './hooks/useAlarm';
 import { useLiveSmsUpdates } from './hooks/useLiveSmsUpdates';
 import { useLiveTracking } from './hooks/useLiveTracking';
-import { decodeConfigParam, ensureLiveSession, loadLiveConfig, saveLiveConfig, type LiveConfig } from './utils/live';
+import { decodeConfigParam, ensureLiveSession, loadLiveConfig, type LiveConfig } from './utils/live';
 import { loadTrip } from './utils/storage';
 import { APP_VERSION } from './version';
 import type { TabId } from './types';
@@ -32,8 +32,11 @@ export default function App() {
   const [booted, setBooted] = useState(false);
   const [liveViewCode, setLiveViewCode] = useState<string | null>(() => new URLSearchParams(window.location.search).get('live'));
   const [liveCfg, setLiveCfg] = useState<LiveConfig | null>(() => {
+    // A ?live= link's station (&c=) is used for THIS viewing session only and
+    // is never saved (v1.17): the default is always the shared station, and
+    // only a station the user deliberately saves in the panel overrides it.
     const fromLink = decodeConfigParam(new URLSearchParams(window.location.search).get('c') || '');
-    if (fromLink) { saveLiveConfig(fromLink); return fromLink; }
+    if (fromLink) return fromLink;
     return loadLiveConfig();
   });
   const [tripActive, setTripActive] = useState<boolean>(() => !!loadTrip());
