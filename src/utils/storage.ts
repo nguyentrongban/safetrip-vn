@@ -1,4 +1,5 @@
 import type { PersonalReport, SOSConfig, TripConfig } from '../types';
+import { liveLink, loadLiveConfig, loadLiveSessionCode } from './live';
 
 const K = { sos: 'safetrip_sos_config', reports: 'safetrip_personal_reports', trip: 'safetrip_active_trip' } as const;
 
@@ -32,5 +33,9 @@ export function buildSmsUrl(phone: string, body: string): string {
 }
 export function buildSosBody(cfg: SOSConfig, lat: number | null, lng: number | null): string {
   const loc = lat !== null && lng !== null ? `https://www.google.com/maps?q=${lat},${lng}` : 'Không lấy được GPS';
-  return `${cfg.message} ${loc}`;
+  let body = `${cfg.message} ${loc}`;
+  const code = loadLiveSessionCode();
+  const liveCfg = loadLiveConfig();
+  if (code && liveCfg) body += `\nTheo dõi tôi di chuyển TRỰC TIẾP tại: ${liveLink(code, liveCfg)}`;
+  return body;
 }
