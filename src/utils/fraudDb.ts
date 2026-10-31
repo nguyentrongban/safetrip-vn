@@ -131,7 +131,12 @@ async function rpc<T>(fn: string, body: Record<string, unknown>): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`rpc ${fn} ${res.status}`);
-  return (await res.json()) as T;
+  // fraud_report returns void → PostgREST answers 204 with an EMPTY body.
+  // Parsing that as JSON throws, which used to make the app report a failed
+  // submission even though the report had landed perfectly (v1.23 fix —
+  // mirror live.ts, whose push path never parses the body).
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 interface FraudRow {
