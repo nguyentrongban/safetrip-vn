@@ -52,3 +52,36 @@ export function normalizePlate(input: string): string {
 export function normalizePhone(input: string): string {
   return input.replace(/[^0-9]/g, '').replace(/^84/, '0');
 }
+
+/** Distance in KM from point P to segment A-B, using a local equirectangular projection (accurate at border scale). */
+export function pointToSegmentKm(p: GeoPoint, a: GeoPoint, b: GeoPoint): number {
+  const R = 6371;
+  const lat0 = (p.lat * Math.PI) / 180;
+  const toXY = (q: GeoPoint) => ({
+    x: R * Math.cos(lat0) * (((q.lng - p.lng) * Math.PI) / 180),
+    y: R * (((q.lat - p.lat) * Math.PI) / 180),
+  });
+  const A = toXY(a); const B = toXY(b);
+  const dx = B.x - A.x; const dy = B.y - A.y;
+  const lenSq = dx * dx + dy * dy;
+  let t = lenSq === 0 ? 0 : -(A.x * dx + A.y * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const cx = A.x + t * dx; const cy = A.y + t * dy;
+  return Math.sqrt(cx * cx + cy * cy);
+}
+
+export interface BorderLineHit { lineId: string; lineName: string; distanceKm: number }
+
+/** Shortest distance from a point to ANY border polyline (đường biên giới thật, không chỉ cửa khẩu). */
+export function distanceToBorderLine(point: GeoPoint, lines: { id: string; name: string; points: [number, number][] }[]): BorderLineHit {
+  let best: BorderLineHit = { lineId: '', lineName: '', distanceKm: Infinity };
+  for (const line of lines) {
+    for (let i = 0; i < line.points.length - 1; i++) {
+      const a = { lat: line.points[i][0], lng: line.points[i][1] };
+      const b = { lat: line.points[i + 1][0], lng: line.points[i + 1][1] };
+      const d = pointToSegmentKm(point, a, b);
+      if (d < best.distanceKm) best = { lineId: line.id, lineName: line.name, distanceKm: d };
+    }
+  }
+  return best;
+}
