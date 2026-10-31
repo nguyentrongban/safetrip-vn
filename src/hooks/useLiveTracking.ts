@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { haversineKm } from '../utils/geo';
-import { ensureLiveSession, pushPosition, type LiveConfig } from '../utils/live';
+import { clearLiveSession, ensureLiveSession, pushPosition, type LiveConfig } from '../utils/live';
 
 /**
  * Sender engine for Grab-style live tracking. While enabled (SOS alarm or an
@@ -18,6 +18,34 @@ export function useLiveTracking(enabled: boolean, cfg: LiveConfig | null, lat: n
   const geoRef = useRef({ lat, lng, speedKmh });
   geoRef.current = { lat, lng, speedKmh };
   const lastPushRef = useRef<{ lat: number; lng: number } | null>(null);
+  // Owner's three-state model: ONLY a deliberate in-app stop (end trip /
+  // stop SOS) may tell the family "trip ended". Closing/swiping the app
+  // must leave SILENCE — the viewer's silence alarm treats an unexplained
+  // stop as possible danger (phone seized, forced to stop sharing).
+  // pagehide marks a closing page so the cleanup below stays silent.
+  const closingRef = useRef(false);
+
+  useEffect(() => {
+    const onHide = () => { closingRef.current = true; };
+    const onShow = () => { closingRef.current = false; };
+    window.addEventListener('pagehide', onHide);
+    window.addEventListener('pageshow', onShow);
+    return () => { window.removeEventListener('pagehide', onHide); window.removeEventListener('pageshow', onShow); };
+  }, []);
+
+  // Keep the screen awake while sharing: an auto-sleeping screen suspends
+  // web geolocation on most phones, which would fake a "sudden stop".
+  useEffect(() => {
+    if (!enabled) return;
+    let lock: { release: () => Promise<void> } | null = null;
+    const acquire = async () => {
+      try { lock = await (navigator as unknown as { wakeLock: { request: (t: string) => Promise<{ release: () => Promise<void> }> } }).wakeLock.request('screen'); } catch { /* unsupported */ }
+    };
+    void acquire();
+    const onVis = () => { if (document.visibilityState === 'visible') void acquire(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { document.removeEventListener('visibilitychange', onVis); void lock?.release().catch(() => {}); };
+  }, [enabled]);
 
   useEffect(() => {
     if (!enabled || !cfg) { setCode(null); return; }
@@ -34,7 +62,21 @@ export function useLiveTracking(enabled: boolean, cfg: LiveConfig | null, lat: n
 
     void push();
     const id = window.setInterval(() => { void push(); }, 20000);
-    return () => { cancelled = true; clearInterval(id); };
+
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      // Deliberate stop while the page stays alive -> one last active=false
+      // push so the family sees a calm "Chuyến đi đã kết thúc". If the page
+      // itself is closing (pagehide seen), stay silent on purpose.
+      if (!closingRef.current) {
+        const last = lastPushRef.current;
+        if (last) void pushPosition(cfg, sessionCode, last.lat, last.lng, geoRef.current.speedKmh, false, true);
+        // Rotate to a fresh code for the next trip/SOS: a link shared for
+        // THIS trip must not silently open the next one (v1.14 security).
+        clearLiveSession();
+      }
+    };
   }, [enabled, cfg]);
 
   // Early push when moved >200m between 20s ticks.
