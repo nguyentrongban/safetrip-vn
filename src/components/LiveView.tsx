@@ -55,8 +55,8 @@ export default function LiveView({ code, cfg, onClose }: Props) {
           <h2 className="font-black text-white text-lg leading-none">Đang theo dõi trực tiếp</h2>
           <p className="text-xs text-slate-400 mt-1">Mã: <b className="text-white tracking-widest">{code}</b></p>
         </div>
-        <span className={`text-[11px] font-bold px-2.5 py-1.5 rounded-full border ${row && !stale ? 'bg-red-500/15 text-red-300 border-red-500/40' : 'bg-slate-800 text-slate-300 border-slate-600'}`}>
-          {row && !stale ? '● TRỰC TIẾP' : 'Đang chờ tín hiệu'}
+        <span className={`text-[11px] font-bold px-2.5 py-1.5 rounded-full border ${row && !row.active ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : row && stale ? 'bg-red-600/25 text-red-300 border-red-500' : row ? 'bg-red-500/15 text-red-300 border-red-500/40' : 'bg-slate-800 text-slate-300 border-slate-600'}`}>
+          {row && !row.active ? 'ĐÃ KẾT THÚC' : row && stale ? '⚠️ DỪNG ĐỘT NGỘT' : row ? '● TRỰC TIẾP' : 'Đang chờ tín hiệu'}
         </span>
       </div>
 
@@ -75,8 +75,15 @@ export default function LiveView({ code, cfg, onClose }: Props) {
           <div className="space-y-1.5">
             <p className="text-base text-white flex items-center gap-2"><RefreshCw className="w-4 h-4 text-blue-400" /> Cập nhật: <b>{ageSec !== null ? (ageSec < 5 ? 'vừa xong' : `${ageSec} giây trước`) : '—'}</b></p>
             <p className="text-base text-white flex items-center gap-2"><Gauge className="w-4 h-4 text-emerald-400" /> Tốc độ xe: <b>{row.speed !== null ? `${Math.round(row.speed)} km/h` : '—'}</b></p>
-            {stale && <p className="text-base text-red-400 font-black">⚠️ MẤT TÍN HIỆU — vị trí cuối cùng lúc {new Date(row.updated_at).toLocaleTimeString('vi-VN')}</p>}
-            {!row.active && <p className="text-base text-slate-300 font-bold">Chuyến đi đã kết thúc.</p>}
+            {stale && row.active && (
+              <div className="bg-red-600/15 border-2 border-red-500 rounded-2xl p-3.5 space-y-1.5">
+                <p className="text-lg text-red-400 font-black leading-snug">⚠️ THEO DÕI DỪNG ĐỘT NGỘT</p>
+                <p className="text-sm text-red-200">Người gửi <b>không bấm dừng</b> mà tín hiệu tự mất lúc {new Date(row.updated_at).toLocaleTimeString('vi-VN')}. Có thể máy hết pin, mất sóng — <b>hoặc đã bị phát hiện và bị bắt dừng theo dõi</b>.</p>
+                <p className="text-sm text-white font-bold">Hãy gọi cho người gửi ngay. Không liên lạc được thì gọi công an:</p>
+                <a href="tel:113" className="inline-block bg-red-600 text-white font-black px-5 py-2.5 rounded-xl text-base">📞 GỌI 113</a>
+              </div>
+            )}
+            {!row.active && <p className="text-base text-emerald-300 font-bold">✅ Chuyến đi đã kết thúc — người gửi đã tự bấm dừng.</p>}
             <a href={`https://www.google.com/maps?q=${row.lat},${row.lng}`} target="_blank" rel="noreferrer" className="inline-block mt-1 bg-primary text-white font-bold px-4 py-2.5 rounded-xl text-sm">Mở bằng Google Maps</a>
           </div>
         )}
