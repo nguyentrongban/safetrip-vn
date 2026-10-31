@@ -40,6 +40,21 @@ src/
   components/HandbookTab.tsx   Hotline 113/111/115, bài kỹ năng thoát hiểm
 ```
 
+## Theo dõi trực tiếp kiểu Grab (v1.6 — trạm chung cho cộng đồng, miễn phí)
+
+Mô hình đã chốt: **một trạm chung duy nhất của chủ app**, gắn sẵn vào app — người dùng mở app là dùng ngay, không cài đặt gì. Có mạng: người thân mở link trong tin nhắn SOS là thấy chấm vị trí chạy trực tiếp trên bản đồ (phát mỗi 20 giây / 200m, xem làm mới 10 giây — đủ nhẹ để gói Supabase free gánh ~10.000 giờ theo dõi/tháng). Mất mạng: app tự quay về nhắc gửi SMS vị trí mới mỗi 1km.
+
+Chủ app bật trạm chung 1 lần, khoảng 3 phút:
+
+1. Vào [supabase.com](https://supabase.com) → tạo 1 project free mới (ví dụ tên `safetrip-live`)
+2. Trong project: **SQL Editor** → dán toàn bộ file `supabase/live.sql` → **Run** (gồm cả tự dọn vị trí cũ hơn 3 ngày)
+3. **Settings → API**: chép `Project URL` và `anon public key`, gửi cho người build
+4. Người build điền 2 giá trị đó vào `DEFAULT_LIVE_CONFIG` trong `src/utils/live.ts` → build lại → up Vercel
+
+Từ đó mọi người dùng đều có sẵn mã trực tiếp 8 ký tự, tin nhắn SOS tự kèm link xem. Người dùng rành kỹ thuật vẫn có thể tự nối trạm riêng trong panel (mục Nâng cao) — trạm riêng được ưu tiên hơn trạm chung.
+
+Bảo mật: anon key là khóa công khai theo thiết kế của Supabase; dữ liệu được bảo vệ bằng RLS và mã phiên ngẫu nhiên — chỉ ai có mã/link mới xem được vị trí; vị trí được giữ 3 ngày để tra cứu khi có sự cố, sau đó tự xóa.
+
 ## Tính năng đã hoạt động thật
 - SOS giữ 2 giây → còi Web Audio + mở SMS kèm link Google Maps cho người thân
 - Giám sát GPS liên tục, tự báo động đỏ + còi + SMS khi cách cửa khẩu < 15km (Haversine)
