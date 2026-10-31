@@ -4,8 +4,8 @@ import { Play, ShieldCheck, Square, TriangleAlert } from 'lucide-react';
 import MapView from './MapView';
 import type { GeoState } from '../hooks/useGeolocation';
 import { formatCountdown, useDeadMansSwitch } from '../hooks/useDeadMansSwitch';
-import { BORDER_POINTS, BORDER_RADIUS_KM, PROVINCES } from '../utils/data';
-import { formatKm, nearestBorder } from '../utils/geo';
+import { BORDER_LINES, BORDER_LINE_ALERT_KM, BORDER_POINTS, BORDER_RADIUS_KM, PROVINCES } from '../utils/data';
+import { distanceToBorderLine, formatKm, nearestBorder } from '../utils/geo';
 import { loadTrip, saveTrip } from '../utils/storage';
 import type { TripConfig } from '../types';
 
@@ -27,15 +27,27 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, alarm
     return nearestBorder({ lat: geo.lat, lng: geo.lng }, BORDER_POINTS);
   }, [geo.lat, geo.lng]);
 
-  const nearBorder = !!trip && nearest !== null && nearest.distanceKm < BORDER_RADIUS_KM;
+  const nearestLine = useMemo(() => {
+    if (geo.lat === null || geo.lng === null) return null;
+    return distanceToBorderLine({ lat: geo.lat, lng: geo.lng }, BORDER_LINES);
+  }, [geo.lat, geo.lng]);
+
+  const nearGate = !!trip && nearest !== null && nearest.distanceKm < BORDER_RADIUS_KM;
+  const nearLine = !!trip && nearestLine !== null && nearestLine.distanceKm < BORDER_LINE_ALERT_KM;
+  const nearBorder = nearGate || nearLine;
+  const dangerKey = nearLine && nearestLine ? `line:${nearestLine.lineId}` : nearGate && nearest ? `gate:${nearest.border.id}` : null;
 
   useEffect(() => {
-    if (nearBorder && nearest && borderAlertedFor !== nearest.border.id) {
-      setBorderAlertedFor(nearest.border.id);
-      onBorderAlarm(nearest.border.name);
+    if (nearBorder && dangerKey && borderAlertedFor !== dangerKey) {
+      setBorderAlertedFor(dangerKey);
+      if (dangerKey.startsWith('line:') && nearestLine) {
+        onBorderAlarm(`Cách ĐƯỜNG BIÊN GIỚI (${nearestLine.lineName}) chỉ ${formatKm(nearestLine.distanceKm)} — vùng có đường mòn/lối mở qua biên giới`);
+      } else if (nearest) {
+        onBorderAlarm(nearest.border.name);
+      }
     }
     if (!nearBorder) setBorderAlertedFor(null);
-  }, [nearBorder, nearest, borderAlertedFor, onBorderAlarm]);
+  }, [nearBorder, dangerKey, nearest, nearestLine, borderAlertedFor, onBorderAlarm]);
 
   const dms = useDeadMansSwitch(!!trip, onDeadManTimeout);
 
@@ -49,11 +61,13 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, alarm
     <div className="space-y-4">
       <MapView lat={geo.lat} lng={geo.lng} />
 
-      {nearest && (
-        <div className={`rounded-2xl p-3 border text-sm ${nearBorder ? 'bg-red-500/15 border-red-500 text-red-100' : 'bg-panel border-slate-700/60 text-slate-200'}`}>
+      {nearest && nearestLine && (
+        <div className={`rounded-2xl p-3 border text-sm space-y-1 ${nearBorder ? 'bg-red-500/15 border-red-500 text-red-100' : 'bg-panel border-slate-700/60 text-slate-200'}`}>
           {nearBorder ? <TriangleAlert className="inline w-4 h-4 mr-1 -mt-0.5" /> : null}
-          Điểm biên giới gần nhất: <b>{nearest.border.name}</b> ({nearest.border.province}) — cách <b>{formatKm(nearest.distanceKm)}</b>
-          {nearBorder && <span className="block font-bold mt-1">BẠN ĐANG TRONG VÙNG NGUY HIỂM 15KM QUANH BIÊN GIỚI!</span>}
+          <span>Cửa khẩu gần nhất: <b>{nearest.border.name}</b> ({nearest.border.province}) — cách <b>{formatKm(nearest.distanceKm)}</b></span>
+          <span className="block">Đường biên giới gần nhất: <b>{nearestLine.lineName}</b> — cách <b>{formatKm(nearestLine.distanceKm)}</b></span>
+          {nearLine && <span className="block font-bold">⚠️ BẠN ĐANG Ở SÁT ĐƯỜNG BIÊN GIỚI — khu vực này có thể có đường mòn, đường rừng, lối mở tự phát qua biên giới dù không có cửa khẩu!</span>}
+          {nearGate && !nearLine && <span className="block font-bold">BẠN ĐANG TRONG VÙNG 15KM QUANH CỬA KHẨU!</span>}
         </div>
       )}
 
@@ -71,7 +85,7 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, alarm
           <button onClick={start} className="w-full bg-success hover:bg-emerald-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition">
             <Play className="w-4 h-4" /> BẮT ĐẦU GIÁM SÁT
           </button>
-          <p className="text-[11px] text-slate-500">Khi bật: app theo dõi GPS liên tục, tự báo động nếu cách biên giới dưới 15km, và bật Dead Man's Switch check-in mỗi 30 phút.</p>
+          <p className="text-[11px] text-slate-500">Khi bật: app theo dõi GPS liên tục, tự báo động nếu cách cửa khẩu dưới 15km HOẶC cách đường biên giới (kể cả đoạn không có cửa khẩu, có đường mòn/lối mở) dưới 10km, và bật Dead Man's Switch check-in mỗi 30 phút.</p>
         </section>
       ) : (
         <section className="bg-panel rounded-2xl p-4 border border-emerald-500/40 space-y-3">
