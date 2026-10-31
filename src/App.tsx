@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BookOpen, House, MapPin, Satellite, Search, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { BookOpen, House, MapPin, Satellite, Search, TriangleAlert } from 'lucide-react';
 import HomeTab from './components/HomeTab';
 import MonitorTab from './components/MonitorTab';
 import SearchTab from './components/SearchTab';
 import HandbookTab from './components/HandbookTab';
-import LocationGate from './components/LocationGate';
 import LiveUpdateBanner from './components/LiveUpdateBanner';
 import LiveView from './components/LiveView';
 import { useGeolocation } from './hooks/useGeolocation';
@@ -14,6 +13,7 @@ import { useLiveSmsUpdates } from './hooks/useLiveSmsUpdates';
 import { useLiveTracking } from './hooks/useLiveTracking';
 import { decodeConfigParam, ensureLiveSession, loadLiveConfig, saveLiveConfig, type LiveConfig } from './utils/live';
 import { loadTrip } from './utils/storage';
+import { APP_VERSION } from './version';
 import type { TabId } from './types';
 
 const TABS: { id: TabId; label: string; Icon: typeof House }[] = [
@@ -29,8 +29,7 @@ export default function App() {
   const [tab, setTab] = useState<TabId>('home');
   const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null);
   const [installed, setInstalled] = useState(false);
-  const [gateDismissed, setGateDismissed] = useState(false);
-  const [waited, setWaited] = useState(false);
+  const [booted, setBooted] = useState(false);
   const [liveViewCode, setLiveViewCode] = useState<string | null>(() => new URLSearchParams(window.location.search).get('live'));
   const [liveCfg, setLiveCfg] = useState<LiveConfig | null>(() => {
     const fromLink = decodeConfigParam(new URLSearchParams(window.location.search).get('c') || '');
@@ -56,16 +55,30 @@ export default function App() {
     window.history.replaceState(null, '', window.location.pathname);
   }, []);
 
+  // Coming back from the browser/OS settings (where the user re-allowed
+  // location) re-checks automatically, so the gate closes by itself.
+  const geoRequestOnce = geo.requestOnce;
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible' && geo.lat === null) geoRequestOnce(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [geoRequestOnce, geo.lat]);
+
   const gpsOk = geo.status === 'granted';
 
+  // No custom gate screen (owner: it was cluttered). On open we simply ask
+  // once through the browser's own permission dialog. A returning visitor
+  // who already allowed keeps the permission automatically — the browser
+  // remembers it per site — so nothing pops up at all. The live-view page
+  // (family watching) never asks: the viewer needs no location.
+  const bootedRef = useState({ done: false })[0];
   useEffect(() => {
-    const t = window.setTimeout(() => setWaited(true), 5000);
-    return () => clearTimeout(t);
+    if (bootedRef.done) return;
+    bootedRef.done = true;
+    if (!liveViewCode) geoRequestOnce();
+    setBooted(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Ask for location on EVERY app open while it is off.
-  // "Để sau" only hides it for this session; next launch it asks again.
-  const showGate = !liveViewCode && !gpsOk && !gateDismissed && (geo.status === 'denied' || geo.status === 'unsupported' || waited);
 
   const onSOS = useCallback(() => {
     ensureLiveSession();
@@ -102,20 +115,13 @@ export default function App() {
   return (
     <div className={`min-h-dvh bg-base text-slate-100 ${alarm.alarming ? 'bg-red-950' : ''}`}>
       {alarm.alarming && <div className="fixed inset-0 pointer-events-none z-40 border-8 border-red-500 animate-blink-red" />}
-      {showGate && (
-        <LocationGate
-          denied={geo.status === 'denied'}
-          onEnable={geo.requestOnce}
-          onLater={() => setGateDismissed(true)}
-        />
-      )}
 
       <header className="sticky top-0 z-30 bg-[#0F172A]/95 backdrop-blur border-b border-slate-800 px-4 py-3">
         <div className={`${SHELL} flex items-center gap-3`}>
-          <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center shrink-0"><ShieldCheck className="w-6 h-6 text-white" /></div>
+          <img src="/logo.png" alt="SafeTrip VN" className="w-10 h-10 rounded-xl shrink-0" />
           <h1 className="flex-1 font-black text-white text-lg leading-none">SafeTrip VN</h1>
-          <button onClick={() => { if (!gpsOk) { setGateDismissed(false); geo.requestOnce(); } }} className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full border ${gpsOk ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-red-500/15 text-red-300 border-red-500/40'}`}>
-            <Satellite className="w-4 h-4" /> {gpsOk ? 'Định vị: Đang bật' : 'Định vị: Đang tắt'}
+          <button onClick={() => { if (!gpsOk) geo.requestOnce(); }} className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full border ${gpsOk ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-red-500/15 text-red-300 border-red-500/40'}`}>
+            <Satellite className="w-4 h-4" /> {gpsOk ? 'Định vị: Đang bật' : geo.status === 'error' ? 'Định vị: Chưa có tín hiệu' : geo.status === 'locating' ? 'Định vị: Đang tìm…' : 'Định vị: Đang tắt'}
           </button>
         </div>
         {!installed && deferredPrompt && (
@@ -125,9 +131,15 @@ export default function App() {
         )}
       </header>
 
-      {!gpsOk && gateDismissed && !showGate && (
-        <button onClick={() => setGateDismissed(false)} className="block w-full bg-amber-500 text-slate-900 font-bold text-sm py-2.5 px-4 text-center">
-          ⚠️ Định vị đang tắt — app không bảo vệ được bạn. Bấm đây để bật
+      {booted && !gpsOk && !liveViewCode && geo.status !== 'locating' && (
+        <button onClick={geo.requestOnce} className="block w-full bg-amber-500 text-slate-900 font-bold text-sm py-2.5 px-4 text-center">
+          {geo.status === 'denied'
+            ? '⚠️ Định vị đang bị chặn — bấm để thử lại, hoặc mở lại quyền trong Cài đặt của trình duyệt'
+            : geo.status === 'error'
+              ? '⚠️ Chưa bắt được tín hiệu GPS — bấm để thử lại'
+              : geo.status === 'unsupported'
+                ? '⚠️ Máy này không hỗ trợ định vị'
+                : '⚠️ Định vị đang tắt — app không bảo vệ được bạn. Bấm đây để bật'}
         </button>
       )}
 
@@ -160,6 +172,11 @@ export default function App() {
               {tab === 'handbook' && <HandbookTab />}
             </motion.div>
           </AnimatePresence>
+        )}
+        {!liveViewCode && (
+          <footer className="mt-10 text-center">
+            <p className="text-xs text-slate-500 font-semibold">SafeTrip VN • Phiên bản {APP_VERSION}</p>
+          </footer>
         )}
       </main>
 
