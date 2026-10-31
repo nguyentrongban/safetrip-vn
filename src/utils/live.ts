@@ -25,7 +25,18 @@ export function loadOwnLiveConfig(): LiveConfig | null {
   try {
     const url = localStorage.getItem(CK.url) || '';
     const anonKey = localStorage.getItem(CK.key) || '';
-    if (url.startsWith('https://') && anonKey.length > 20) return { url: url.replace(/\/$/, ''), anonKey };
+    if (url.startsWith('https://') && anonKey.length > 20) {
+      const own = { url: url.replace(/\/$/, ''), anonKey };
+      // Default is the SHARED station (v1.17): a saved "own" config identical
+      // to the shared relay is not a real own station — older versions
+      // auto-saved it from ?live= links — so drop it and fall back to the
+      // shared default. A deliberately saved, DIFFERENT station is kept.
+      if (DEFAULT_LIVE_CONFIG && own.url === DEFAULT_LIVE_CONFIG.url && own.anonKey === DEFAULT_LIVE_CONFIG.anonKey) {
+        localStorage.removeItem(CK.url); localStorage.removeItem(CK.key);
+        return null;
+      }
+      return own;
+    }
   } catch { /* storage unavailable */ }
   return null;
 }
