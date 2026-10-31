@@ -42,7 +42,9 @@ export function saveLiveConfig(cfg: LiveConfig | null): void {
 
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export function genLiveCode(): string {
-  const arr = new Uint32Array(8);
+  // 10 chars from a 31-symbol alphabet ≈ 8×10^14 combinations — the code IS
+  // the key to a live location, so it must be unguessable (v1.14, was 8).
+  const arr = new Uint32Array(10);
   crypto.getRandomValues(arr);
   return Array.from(arr, (n) => ALPHABET[n % ALPHABET.length]).join('');
 }
@@ -51,7 +53,7 @@ export function genLiveCode(): string {
 export function ensureLiveSession(): string {
   try {
     const raw = localStorage.getItem(CK.session);
-    if (raw) { const s = JSON.parse(raw) as { code: string }; if (s.code) return s.code; }
+    if (raw) { const s = JSON.parse(raw) as { code: string }; if (s.code && s.code.length === 10) return s.code; }
   } catch { /* corrupted */ }
   const code = genLiveCode();
   localStorage.setItem(CK.session, JSON.stringify({ code, startedAt: Date.now() }));
@@ -69,8 +71,9 @@ export function clearLiveSession(): void { localStorage.removeItem(CK.session); 
 export function liveLink(code: string, cfg?: LiveConfig | null): string {
   const base = `${window.location.origin}${window.location.pathname}?live=${code}`;
   // The family member's phone has no config saved, so the link itself carries
-  // it (base64url). The anon key is public-by-design (RLS protects the data),
-  // and the link only travels inside the family's SOS SMS.
+  // it (base64url). The anon key is public-by-design, but since v1.14 it can
+  // only call two guarded RPCs (live_push/live_fetch) — the table is locked,
+  // and the session code in the link is the actual key to the location.
   if (!cfg) return base;
   const enc = btoa(`${cfg.url}|${cfg.anonKey}`).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   return `${base}&c=${enc}`;
@@ -90,16 +93,21 @@ function headers(cfg: LiveConfig): Record<string, string> {
   return { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}`, 'Content-Type': 'application/json' };
 }
 
-/** Upsert one position. Returns false when offline / not configured / rejected. */
-export async function pushPosition(cfg: LiveConfig, code: string, lat: number, lng: number, speedKmh: number | null, active: boolean): Promise<boolean> {
+/** Push one position through the guarded live_push RPC (v1.14 security:
+ *  the table itself is locked — the public key can no longer read or write
+ *  it directly, so nobody can dump everyone's locations or hijack a code
+ *  they don't know). Returns false when offline / not configured / rejected.
+ *  keepalive lets a final "trip ended" push complete while the page closes. */
+export async function pushPosition(cfg: LiveConfig, code: string, lat: number, lng: number, speedKmh: number | null, active: boolean, keepalive = false): Promise<boolean> {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch(`${cfg.url}/rest/v1/live_locations`, {
+    const res = await fetch(`${cfg.url}/rest/v1/rpc/live_push`, {
       method: 'POST',
-      headers: { ...headers(cfg), Prefer: 'resolution=merge-duplicates' },
-      body: JSON.stringify([{ code, lat, lng, speed: speedKmh, active, updated_at: new Date().toISOString() }]),
+      headers: headers(cfg),
+      body: JSON.stringify({ p_code: code, p_lat: lat, p_lng: lng, p_speed: speedKmh, p_active: active }),
       signal: ctrl.signal,
+      keepalive,
     });
     clearTimeout(t);
     return res.ok;
@@ -110,8 +118,11 @@ export async function fetchPosition(cfg: LiveConfig, code: string): Promise<Live
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch(`${cfg.url}/rest/v1/live_locations?code=eq.${encodeURIComponent(code)}&select=code,lat,lng,speed,active,updated_at`, {
-      headers: headers(cfg), signal: ctrl.signal,
+    const res = await fetch(`${cfg.url}/rest/v1/rpc/live_fetch`, {
+      method: 'POST',
+      headers: headers(cfg),
+      body: JSON.stringify({ p_code: code.toUpperCase() }),
+      signal: ctrl.signal,
     });
     clearTimeout(t);
     if (!res.ok) return null;
