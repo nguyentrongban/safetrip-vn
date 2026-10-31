@@ -5,8 +5,15 @@ import HomeTab from './components/HomeTab';
 import MonitorTab from './components/MonitorTab';
 import SearchTab from './components/SearchTab';
 import HandbookTab from './components/HandbookTab';
+import LocationGate from './components/LocationGate';
+import LiveUpdateBanner from './components/LiveUpdateBanner';
+import LiveView from './components/LiveView';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useAlarm } from './hooks/useAlarm';
+import { useLiveSmsUpdates } from './hooks/useLiveSmsUpdates';
+import { useLiveTracking } from './hooks/useLiveTracking';
+import { decodeConfigParam, ensureLiveSession, loadLiveConfig, saveLiveConfig, type LiveConfig } from './utils/live';
+import { loadTrip } from './utils/storage';
 import type { TabId } from './types';
 
 const TABS: { id: TabId; label: string; Icon: typeof House }[] = [
@@ -16,22 +23,62 @@ const TABS: { id: TabId; label: string; Icon: typeof House }[] = [
   { id: 'handbook', label: 'Sổ Tay', Icon: BookOpen },
 ];
 
+const SHELL = 'max-w-md md:max-w-2xl lg:max-w-4xl mx-auto';
+
 export default function App() {
   const [tab, setTab] = useState<TabId>('home');
   const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null);
   const [installed, setInstalled] = useState(false);
+  const [gateDismissed, setGateDismissed] = useState(false);
+  const [waited, setWaited] = useState(false);
+  const [liveViewCode, setLiveViewCode] = useState<string | null>(() => new URLSearchParams(window.location.search).get('live'));
+  const [liveCfg, setLiveCfg] = useState<LiveConfig | null>(() => {
+    const fromLink = decodeConfigParam(new URLSearchParams(window.location.search).get('c') || '');
+    if (fromLink) { saveLiveConfig(fromLink); return fromLink; }
+    return loadLiveConfig();
+  });
+  const [tripActive, setTripActive] = useState<boolean>(() => !!loadTrip());
   const geo = useGeolocation();
   const alarm = useAlarm();
+  const live = useLiveSmsUpdates(alarm.alarming, geo.lat, geo.lng);
+  useLiveTracking(alarm.alarming || tripActive, liveCfg, geo.lat, geo.lng, geo.speedKmh);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setTripActive(!!loadTrip());
+      setLiveCfg((prev) => prev || loadLiveConfig());
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  const closeLive = useCallback(() => {
+    setLiveViewCode(null);
+    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
+
+  const gpsOk = geo.status === 'granted';
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setWaited(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Ask for location on EVERY app open while it is off.
+  // "Để sau" only hides it for this session; next launch it asks again.
+  const showGate = !liveViewCode && !gpsOk && !gateDismissed && (geo.status === 'denied' || geo.status === 'unsupported' || waited);
 
   const onSOS = useCallback(() => {
+    ensureLiveSession();
     alarm.triggerSOS('Người dùng giữ nút SOS', geo.lat, geo.lng);
   }, [alarm, geo.lat, geo.lng]);
 
   const onBorderAlarm = useCallback((borderName: string) => {
+    ensureLiveSession();
     alarm.triggerSOS(`Áp sát biên giới: ${borderName}`, geo.lat, geo.lng);
   }, [alarm, geo.lat, geo.lng]);
 
   const onDeadManTimeout = useCallback(() => {
+    ensureLiveSession();
     alarm.triggerSOS("Dead Man's Switch: quá 3 phút không check-in", geo.lat, geo.lng);
   }, [alarm, geo.lat, geo.lng]);
 
@@ -52,62 +99,84 @@ export default function App() {
     if (choice.outcome === 'accepted') setDeferredPrompt(null);
   };
 
-  const gpsOk = geo.status === 'granted';
-
   return (
     <div className={`min-h-dvh bg-base text-slate-100 ${alarm.alarming ? 'bg-red-950' : ''}`}>
       {alarm.alarming && <div className="fixed inset-0 pointer-events-none z-40 border-8 border-red-500 animate-blink-red" />}
+      {showGate && (
+        <LocationGate
+          denied={geo.status === 'denied'}
+          onEnable={geo.requestOnce}
+          onLater={() => setGateDismissed(true)}
+        />
+      )}
+
       <header className="sticky top-0 z-30 bg-[#0F172A]/95 backdrop-blur border-b border-slate-800 px-4 py-3">
-        <div className="max-w-md mx-auto flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0"><ShieldCheck className="w-5 h-5 text-white" /></div>
-          <div className="flex-1 min-w-0">
-            <h1 className="font-black text-white leading-none">SafeTrip VN</h1>
-            <p className="text-[11px] text-slate-400 truncate">An toàn xe khách · Cảnh báo biên giới</p>
-          </div>
-          <button onClick={geo.requestOnce} className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1.5 rounded-full border ${gpsOk ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-red-500/15 text-red-300 border-red-500/40'}`}>
-            <Satellite className="w-3.5 h-3.5" /> {gpsOk ? 'GPS: Đang định vị' : geo.status === 'locating' ? 'GPS: Đang tìm...' : 'GPS: Chưa bật'}
+        <div className={`${SHELL} flex items-center gap-3`}>
+          <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center shrink-0"><ShieldCheck className="w-6 h-6 text-white" /></div>
+          <h1 className="flex-1 font-black text-white text-lg leading-none">SafeTrip VN</h1>
+          <button onClick={() => { if (!gpsOk) { setGateDismissed(false); geo.requestOnce(); } }} className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full border ${gpsOk ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-red-500/15 text-red-300 border-red-500/40'}`}>
+            <Satellite className="w-4 h-4" /> {gpsOk ? 'Định vị: Đang bật' : 'Định vị: Đang tắt'}
           </button>
         </div>
         {!installed && deferredPrompt && (
-          <div className="max-w-md mx-auto mt-2">
-            <button onClick={installApp} className="w-full bg-primary text-white text-sm font-bold py-2 rounded-xl">📲 Ghim SafeTrip VN ra màn hình chính</button>
+          <div className={`${SHELL} mt-2`}>
+            <button onClick={installApp} className="w-full bg-primary text-white text-sm font-bold py-2.5 rounded-xl">📲 Ghim app ra màn hình chính</button>
           </div>
-        )}
-        {!installed && !deferredPrompt && (
-          <p className="max-w-md mx-auto text-[11px] text-slate-500 mt-2">Để ghim ra màn hình chính: Android Chrome → menu ⋮ → "Cài đặt ứng dụng". iPhone Safari → Chia sẻ → "Thêm vào Màn hình chính".</p>
         )}
       </header>
 
+      {!gpsOk && gateDismissed && !showGate && (
+        <button onClick={() => setGateDismissed(false)} className="block w-full bg-amber-500 text-slate-900 font-bold text-sm py-2.5 px-4 text-center">
+          ⚠️ Định vị đang tắt — app không bảo vệ được bạn. Bấm đây để bật
+        </button>
+      )}
+
       {alarm.alarming && (
-        <div className="max-w-md mx-auto px-4 pt-3">
-          <div className="bg-red-600 text-white rounded-2xl p-3 font-bold text-sm flex gap-2 items-start">
-            <TriangleAlert className="w-5 h-5 shrink-0" />
-            <span>ĐANG BÁO ĐỘNG: {alarm.lastTrigger}. Còi đang phát, SMS SOS đã được mở sẵn cho người thân. Bấm nút đỏ ở tab SOS để tắt.</span>
+        <div className={`${SHELL} px-4 pt-3`}>
+          <div className="bg-red-600 text-white rounded-2xl p-3 font-bold text-sm flex gap-2 items-center">
+            <TriangleAlert className="w-6 h-6 shrink-0" />
+            <span>ĐANG BÁO ĐỘNG — {alarm.lastTrigger}. Đã mở sẵn tin nhắn gửi người thân.</span>
           </div>
         </div>
       )}
 
-      <main className="max-w-md mx-auto px-4 pt-4 pb-28">
-        <AnimatePresence mode="wait">
-          <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
-            {tab === 'home' && <HomeTab geo={geo} alarming={alarm.alarming} onSOS={onSOS} onStopAlarm={alarm.stopAlarm} />}
-            {tab === 'monitor' && <MonitorTab geo={geo} onBorderAlarm={onBorderAlarm} onDeadManTimeout={onDeadManTimeout} alarming={alarm.alarming} />}
-            {tab === 'search' && <SearchTab />}
-            {tab === 'handbook' && <HandbookTab />}
-          </motion.div>
-        </AnimatePresence>
+      <main className={`${SHELL} px-4 pt-4 pb-28`}>
+        {liveViewCode ? (
+          liveCfg ? (
+            <LiveView code={liveViewCode.toUpperCase()} cfg={liveCfg} onClose={closeLive} />
+          ) : (
+            <div className="bg-panel rounded-3xl p-5 border border-slate-700/60 text-center space-y-3">
+              <p className="text-white font-black text-lg">Link này thiếu dữ liệu nối</p>
+              <p className="text-sm text-slate-300">Hãy mở đúng link trong tin nhắn SOS, hoặc vào tab Giám Sát, panel "Theo dõi trực tiếp" để nhập mã.</p>
+              <button onClick={closeLive} className="bg-primary text-white font-bold px-5 py-3 rounded-2xl">Quay lại app</button>
+            </div>
+          )
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
+              {tab === 'home' && <HomeTab geo={geo} alarming={alarm.alarming} onSOS={onSOS} onStopAlarm={alarm.stopAlarm} />}
+              {tab === 'monitor' && <MonitorTab geo={geo} onBorderAlarm={onBorderAlarm} onDeadManTimeout={onDeadManTimeout} onOpenLive={(c) => setLiveViewCode(c)} alarming={alarm.alarming} />}
+              {tab === 'search' && <SearchTab />}
+              {tab === 'handbook' && <HandbookTab />}
+            </motion.div>
+          </AnimatePresence>
+        )}
       </main>
 
+      <LiveUpdateBanner visible={!!live.prompt} onSend={live.sendUpdate} onDismiss={live.dismiss} />
+
+      {!liveViewCode && (
       <nav className="fixed bottom-0 inset-x-0 z-30 bg-[#0B1220]/95 backdrop-blur border-t border-slate-800" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="max-w-md mx-auto grid grid-cols-4 relative">
+        <div className={`${SHELL} grid grid-cols-4`}>
           {TABS.map(({ id, label, Icon }) => (
-            <button key={id} onClick={() => setTab(id)} className={`relative py-2.5 flex flex-col items-center gap-0.5 text-[11px] font-bold ${tab === id ? 'text-blue-400' : 'text-slate-400'}`}>
-              <Icon className="w-5 h-5" /> {label}
+            <button key={id} onClick={() => setTab(id)} className={`relative py-2.5 flex flex-col items-center gap-0.5 text-xs font-bold ${tab === id ? 'text-blue-400' : 'text-slate-400'}`}>
+              <Icon className="w-6 h-6" /> {label}
               {id === 'home' && alarm.alarming && <span className="absolute top-1 right-4 w-2 h-2 rounded-full bg-red-500 animate-ping" />}
             </button>
           ))}
         </div>
       </nav>
+      )}
     </div>
   );
 }
