@@ -65,7 +65,7 @@ export default function LivePanel({ onOpenLive }: Props) {
       )}
 
       <div className="flex gap-2">
-        <input className={inputCls} placeholder="Nhập mã của người thân" value={watchCode} onChange={(e) => setWatchCode(e.target.value.toUpperCase())} maxLength={8} />
+        <input className={inputCls} placeholder="Nhập mã của người thân" value={watchCode} onChange={(e) => setWatchCode(e.target.value.toUpperCase())} maxLength={10} />
         <button onClick={() => { if (watchCode.trim().length >= 6) onOpenLive(watchCode.trim()); }} className="shrink-0 bg-success text-white font-black px-4 rounded-2xl flex items-center gap-1.5"><Eye className="w-4 h-4" /> XEM</button>
       </div>
       <p className="text-[11px] text-slate-500 flex items-center gap-1"><Link2 className="w-3 h-3" /> Hết mạng thì app tự chuyển sang nhắc gửi SMS mỗi 1km như cũ.</p>
