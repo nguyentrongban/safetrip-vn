@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface GeoState {
   lat: number | null; lng: number | null; speedKmh: number | null;
-  accuracy: number | null; status: 'idle' | 'locating' | 'granted' | 'denied' | 'unsupported';
+  accuracy: number | null;
+  /** error = permission is fine but no GPS fix (timeout / unavailable) — the UI must say so instead of looking dead. */
+  status: 'idle' | 'locating' | 'granted' | 'denied' | 'unsupported' | 'error';
   error: string;
 }
 
@@ -20,13 +22,22 @@ export function useGeolocation() {
     });
   }, []);
   const fail = useCallback((err: GeolocationPositionError) => {
-    setState((s) => ({ ...s, status: err.code === err.PERMISSION_DENIED ? 'denied' : s.status, error: err.message }));
+    setState((s) => ({
+      ...s,
+      status: err.code === err.PERMISSION_DENIED ? 'denied' : 'error',
+      error: err.message,
+    }));
   }, []);
 
   const requestOnce = useCallback(() => {
     if (!('geolocation' in navigator)) { setState((s) => ({ ...s, status: 'unsupported', error: 'Thiết bị không hỗ trợ GPS' })); return; }
-    setState((s) => ({ ...s, status: 'locating' }));
-    navigator.geolocation.getCurrentPosition(apply, fail, { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
+    setState((s) => ({ ...s, status: 'locating', error: '' }));
+    // High accuracy first; indoors the first fix often times out on iPhone,
+    // so fall back ONCE to a coarse fix (cell/wifi) instead of failing mute.
+    navigator.geolocation.getCurrentPosition(apply, (err) => {
+      if (err.code === err.PERMISSION_DENIED) { fail(err); return; }
+      navigator.geolocation.getCurrentPosition(apply, fail, { enableHighAccuracy: false, timeout: 25000, maximumAge: 60000 });
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
   }, [apply, fail]);
 
   const startWatch = useCallback(() => {
