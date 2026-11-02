@@ -1,5 +1,5 @@
 import type { Map as MapboxMap } from 'mapbox-gl';
-import { ISLAND_GROUPS } from './data';
+import { ISLAND_GROUPS, LANDMARKS } from './data';
 
 /**
  * Mapbox GL is the PRIMARY map engine (v1.25) — a vector map with a
@@ -121,9 +121,9 @@ export function watchMapboxMap(map: MapboxMap, onFail: (reason: string) => void)
 /* keeps its imagery untouched; only its labels are restyled.          */
 /* ------------------------------------------------------------------ */
 export function applyBrandPaint(map: MapboxMap, opts: { satellite: boolean }): void {
-  let layers: { id: string; type: string }[] = [];
+  let layers: { id: string; type: string; 'source-layer'?: string }[] = [];
   try {
-    layers = (map.getStyle()?.layers ?? []) as { id: string; type: string }[];
+    layers = (map.getStyle()?.layers ?? []) as { id: string; type: string; 'source-layer'?: string }[];
   } catch {
     return;
   }
@@ -134,32 +134,32 @@ export function applyBrandPaint(map: MapboxMap, opts: { satellite: boolean }): v
     try {
       if (!opts.satellite) {
         if (layer.type === 'background') {
-          map.setPaintProperty(id, 'background-color', '#FDF6E9');
+          map.setPaintProperty(id, 'background-color', '#FFF9EF');
         } else if (lower.includes('water') && layer.type === 'fill') {
-          map.setPaintProperty(id, 'fill-color', '#A5DBF7');
+          map.setPaintProperty(id, 'fill-color', '#79D2F7');
         } else if (lower.includes('water') && layer.type === 'line') {
-          map.setPaintProperty(id, 'line-color', '#8ED0F2');
+          map.setPaintProperty(id, 'line-color', '#5FC3F2');
         } else if (layer.type === 'fill' && lower.includes('building')) {
-          map.setPaintProperty(id, 'fill-color', '#F6DDBE');
+          map.setPaintProperty(id, 'fill-color', '#FFD7BD');
         } else if (layer.type === 'fill' && (lower.includes('park') || lower.includes('grass') || lower.includes('pitch'))) {
-          map.setPaintProperty(id, 'fill-color', '#C9EDBE');
+          map.setPaintProperty(id, 'fill-color', '#B8ECD2');
         } else if (layer.type === 'fill' && (lower.includes('wood') || lower.includes('forest') || lower.includes('scrub'))) {
-          map.setPaintProperty(id, 'fill-color', '#BCE3C2');
+          map.setPaintProperty(id, 'fill-color', '#9FE3B4');
         } else if (layer.type === 'fill' && (lower.includes('land') || lower.includes('landcover') || lower.includes('landuse') || lower.includes('urban'))) {
-          map.setPaintProperty(id, 'fill-color', '#FBF2DF');
+          map.setPaintProperty(id, 'fill-color', '#FFF6E5');
         } else if (layer.type === 'line' && (lower.includes('motorway') || lower.includes('trunk')) && lower.includes('casing')) {
-          map.setPaintProperty(id, 'line-color', '#F5A95C');
+          map.setPaintProperty(id, 'line-color', '#F28B62');
         } else if (layer.type === 'line' && (lower.includes('motorway') || lower.includes('trunk'))) {
-          map.setPaintProperty(id, 'line-color', '#FFB56B');
+          map.setPaintProperty(id, 'line-color', '#FF9E7A');
           try { map.setLayoutProperty(id, 'line-cap', 'round'); } catch { /* skip */ }
           try { map.setLayoutProperty(id, 'line-join', 'round'); } catch { /* skip */ }
         } else if (layer.type === 'line' && lower.includes('primary') && lower.includes('casing')) {
-          map.setPaintProperty(id, 'line-color', '#F2C879');
+          map.setPaintProperty(id, 'line-color', '#F5B84C');
         } else if (layer.type === 'line' && lower.includes('primary')) {
-          map.setPaintProperty(id, 'line-color', '#FFD98E');
+          map.setPaintProperty(id, 'line-color', '#FFCF6E');
           try { map.setLayoutProperty(id, 'line-cap', 'round'); } catch { /* skip */ }
         } else if (layer.type === 'line' && lower.includes('casing') && (lower.includes('road') || lower.includes('secondary') || lower.includes('tertiary') || lower.includes('street') || lower.includes('minor'))) {
-          map.setPaintProperty(id, 'line-color', '#EBDCC0');
+          map.setPaintProperty(id, 'line-color', '#F1DFC2');
         } else if (layer.type === 'line' && (lower.includes('road') || lower.includes('secondary') || lower.includes('tertiary') || lower.includes('street') || lower.includes('minor'))) {
           map.setPaintProperty(id, 'line-color', '#FFFFFF');
           try { map.setLayoutProperty(id, 'line-cap', 'round'); } catch { /* skip */ }
@@ -167,23 +167,39 @@ export function applyBrandPaint(map: MapboxMap, opts: { satellite: boolean }): v
         }
       }
       if (layer.type === 'symbol') {
-        // Vietnamese labels first where the style's text-field reads a name
-        // property; formatted/exotic expressions are left alone.
-        const tf: unknown = (() => { try { return map.getLayoutProperty(id, 'text-field'); } catch { return undefined; } })();
-        if (tf !== undefined && tf !== null) {
-          const s = JSON.stringify(tf);
-          if (s.includes('name') && !s.includes('"format"')) {
-            try { map.setLayoutProperty(id, 'text-field', ['coalesce', ['get', 'name:vi'], ['get', 'name']]); } catch { /* skip */ }
-          }
-        }
-        if (opts.satellite) {
-          try { map.setPaintProperty(id, 'text-color', '#E8EEF9'); } catch { /* icon-only layer */ }
-          try { map.setPaintProperty(id, 'text-halo-color', '#0B1226'); } catch { /* skip */ }
-          try { map.setPaintProperty(id, 'text-halo-width', 1.4); } catch { /* skip */ }
-        } else {
-          try { map.setPaintProperty(id, 'text-color', '#41516B'); } catch { /* icon-only layer */ }
+        if (layer['source-layer'] === 'water_label') {
+          // The East Sea is BIỂN ĐÔNG — rename it in the data itself,
+          // never show "South China Sea". Other waters keep VI names.
+          try {
+            map.setLayoutProperty(id, 'text-field', [
+              'case',
+              ['==', ['get', 'name'], 'South China Sea'], 'Biển Đông',
+              ['==', ['get', 'name:vi'], 'South China Sea'], 'Biển Đông',
+              ['coalesce', ['get', 'name:vi'], ['get', 'name']],
+            ]);
+          } catch { /* skip */ }
+          try { map.setPaintProperty(id, 'text-color', '#2E6DA8'); } catch { /* skip */ }
           try { map.setPaintProperty(id, 'text-halo-color', '#FFFFFF'); } catch { /* skip */ }
-          try { map.setPaintProperty(id, 'text-halo-width', 1.6); } catch { /* skip */ }
+          try { map.setPaintProperty(id, 'text-halo-width', 2); } catch { /* skip */ }
+        } else {
+          // Vietnamese labels first where the style's text-field reads a name
+          // property; formatted/exotic expressions are left alone.
+          const tf: unknown = (() => { try { return map.getLayoutProperty(id, 'text-field'); } catch { return undefined; } })();
+          if (tf !== undefined && tf !== null) {
+            const s = JSON.stringify(tf);
+            if (s.includes('name') && !s.includes('"format"')) {
+              try { map.setLayoutProperty(id, 'text-field', ['coalesce', ['get', 'name:vi'], ['get', 'name']]); } catch { /* skip */ }
+            }
+          }
+          if (opts.satellite) {
+            try { map.setPaintProperty(id, 'text-color', '#E8EEF9'); } catch { /* icon-only layer */ }
+            try { map.setPaintProperty(id, 'text-halo-color', '#0B1226'); } catch { /* skip */ }
+            try { map.setPaintProperty(id, 'text-halo-width', 1.4); } catch { /* skip */ }
+          } else {
+            try { map.setPaintProperty(id, 'text-color', '#3D4E6E'); } catch { /* icon-only layer */ }
+            try { map.setPaintProperty(id, 'text-halo-color', '#FFFFFF'); } catch { /* skip */ }
+            try { map.setPaintProperty(id, 'text-halo-width', 1.8); } catch { /* skip */ }
+          }
         }
       }
     } catch {
@@ -290,6 +306,88 @@ export function addSovereigntyMarkers(map: MapboxMap): void {
     }
   } catch {
     /* best-effort overlay — never break the map over the markers */
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Landmark pins: famous Vietnamese places with a cute pink pin and a  */
+/* small name label. Collision is left ON so the map declutters        */
+/* itself when zoomed out. Idempotent — safe after setStyle.           */
+/* ------------------------------------------------------------------ */
+export function addLandmarkMarkers(map: MapboxMap): void {
+  try {
+    if (!map.hasImage('vn-pin')) {
+      const w = 72;
+      const h = 88;
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // teardrop pin: circle head + point at the bottom
+        ctx.beginPath();
+        ctx.moveTo(w / 2, h - 4);
+        ctx.bezierCurveTo(w / 2 - 4, h - 26, 6, 44, 6, 32);
+        ctx.arc(w / 2, 32, 26, Math.PI, 0);
+        ctx.bezierCurveTo(w - 6, 44, w / 2 + 4, h - 26, w / 2, h - 4);
+        ctx.closePath();
+        ctx.fillStyle = '#F472B6';
+        ctx.fill();
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(w / 2, 32, 11, 0, Math.PI * 2);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fill();
+        map.addImage('vn-pin', ctx.getImageData(0, 0, w, h), { pixelRatio: 2 });
+      }
+    }
+    if (!map.getSource('safetrip-landmarks')) {
+      map.addSource('safetrip-landmarks', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: LANDMARKS.map((g) => ({
+            type: 'Feature' as const,
+            properties: { name: g.name },
+            geometry: { type: 'Point' as const, coordinates: [g.lng, g.lat] as [number, number] },
+          })),
+        },
+      });
+    }
+    if (!map.getLayer('safetrip-landmarks-pin')) {
+      map.addLayer({
+        id: 'safetrip-landmarks-pin', type: 'symbol', source: 'safetrip-landmarks',
+        layout: {
+          'icon-image': 'vn-pin',
+          'icon-size': 0.55,
+          'icon-anchor': 'bottom',
+          'icon-allow-overlap': false,
+        },
+      });
+    }
+    if (!map.getLayer('safetrip-landmarks-label')) {
+      map.addLayer({
+        id: 'safetrip-landmarks-label', type: 'symbol', source: 'safetrip-landmarks',
+        layout: {
+          'text-field': ['get', 'name'],
+          'text-size': 11,
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-anchor': 'top',
+          'text-offset': [0, 0.2],
+          'text-allow-overlap': false,
+          'text-optional': true,
+        },
+        paint: {
+          'text-color': '#A12354',
+          'text-halo-color': '#FFFFFF',
+          'text-halo-width': 1.8,
+        },
+      });
+    }
+  } catch {
+    /* best-effort overlay — never break the map over the pins */
   }
 }
 

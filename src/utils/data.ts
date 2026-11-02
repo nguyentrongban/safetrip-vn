@@ -29,6 +29,27 @@ export const ISLAND_GROUPS: IslandGroup[] = [
   { id: 'truong-sa', name: 'Quần đảo Trường Sa', short: 'Trường Sa', en: 'Spratly Islands', lat: 9.92, lng: 114.32 },
 ];
 
+/** The East Sea label position (open water, clear of the island flags). */
+export const SEA_LABEL = { name: 'BIỂN ĐÔNG', lat: 13.60, lng: 115.00 };
+
+export interface Landmark { id: string; name: string; lat: number; lng: number }
+
+/** Famous Vietnamese landmarks, pinned on the maps with a pink pin. */
+export const LANDMARKS: Landmark[] = [
+  { id: 'lung-cu', name: 'Cột cờ Lũng Cú', lat: 23.3566, lng: 105.3186 },
+  { id: 'fansipan', name: 'Đỉnh Fansipan', lat: 22.3030, lng: 103.7748 },
+  { id: 'ho-hoan-kiem', name: 'Hồ Hoàn Kiếm', lat: 21.0287, lng: 105.8523 },
+  { id: 'vinh-ha-long', name: 'Vịnh Hạ Long', lat: 20.9100, lng: 107.1840 },
+  { id: 'phong-nha', name: 'Động Phong Nha', lat: 17.5906, lng: 106.2836 },
+  { id: 'dai-noi-hue', name: 'Đại Nội Huế', lat: 16.4693, lng: 107.5786 },
+  { id: 'cau-vang', name: 'Cầu Vàng · Bà Nà', lat: 15.9989, lng: 107.9960 },
+  { id: 'hoi-an', name: 'Phố cổ Hội An', lat: 15.8801, lng: 108.3380 },
+  { id: 'ponagar', name: 'Tháp Bà Ponagar', lat: 12.2653, lng: 109.1953 },
+  { id: 'dinh-doc-lap', name: 'Dinh Độc Lập', lat: 10.7770, lng: 106.6953 },
+  { id: 'cho-noi-cai-rang', name: 'Chợ nổi Cái Răng', lat: 10.0009, lng: 105.7488 },
+  { id: 'dinh-cau', name: 'Dinh Cậu · Phú Quốc', lat: 10.2903, lng: 103.9571 },
+];
+
 export const BLACKLIST_DATABASE: BlacklistEntry[] = [
   { id: 'b1', plate: '51B-284.71', company: 'Xe khách Hoàng Long (giả mạo)', phone: '0903124771', reason: 'Chở khách vượt biên sang Bavet, thu giữ điện thoại và CCCD của 6 hành khách.', risk: 'CRITICAL', reports: 23, lastSeen: 'Tây Ninh' },
   { id: 'b2', plate: '67B-091.33', company: 'Nhà xe An Phát (không giấy phép)', phone: '0918091333', reason: 'Không logo, không bến bãi, hẹn đón 2h sáng tại chỗ vắng, ép chuyển xe giữa đường.', risk: 'CRITICAL', reports: 18, lastSeen: 'An Giang' },
