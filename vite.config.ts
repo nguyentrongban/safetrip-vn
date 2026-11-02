@@ -25,6 +25,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webp}'],
+        // The Mapbox GL chunk is loaded on demand only when a token is
+        // configured (v1.25) — never precache it for Leaflet-only users.
+        globIgnores: ['**/mapbox-gl-*.{js,css}'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/[abc]\.tile\.openstreetmap\.org\/.*/i,
