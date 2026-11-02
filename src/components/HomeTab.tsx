@@ -37,7 +37,7 @@ export default function HomeTab({ geo, alarming, onSOS, onStopAlarm }: Props) {
 
       <div className="bg-panel rounded-3xl p-4 border border-slate-700/60 space-y-2">
         <p className="text-base text-white flex items-start gap-2">
-          <MapPin className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+          <MapPin className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
           <span>{address ? <>{address}</> : geo.lat !== null ? <>{geo.lat.toFixed(5)}, {geo.lng?.toFixed(5)}</> : 'Chưa biết vị trí — hãy bật định vị'}</span>
         </p>
         <p className="text-sm text-slate-300 flex items-center gap-2 pl-7">
@@ -46,7 +46,7 @@ export default function HomeTab({ geo, alarming, onSOS, onStopAlarm }: Props) {
       </div>
 
       <section className="bg-panel rounded-3xl p-4 border border-slate-700/60 space-y-3">
-        <h3 className="font-black text-white text-base flex items-center gap-2"><Phone className="w-5 h-5 text-blue-400" /> Người thân nhận tin SOS</h3>
+        <h3 className="font-black text-white text-base flex items-center gap-2"><Phone className="w-5 h-5 text-sky-400" /> Người thân nhận tin SOS</h3>
         <input className={inputCls} inputMode="tel" placeholder="Số điện thoại người thân 1" value={cfg.phone1} onChange={(e) => setCfg({ ...cfg, phone1: e.target.value })} />
         <input className={inputCls} inputMode="tel" placeholder="Số người thân 2 (nếu có)" value={cfg.phone2} onChange={(e) => setCfg({ ...cfg, phone2: e.target.value })} />
         <textarea className={inputCls} rows={2} placeholder="Lời nhắn khi bấm SOS" value={cfg.message} onChange={(e) => setCfg({ ...cfg, message: e.target.value })} />

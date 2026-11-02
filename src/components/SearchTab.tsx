@@ -149,7 +149,7 @@ export default function SearchTab() {
   return (
     <div className="space-y-5">
       <section className="space-y-3">
-        <h3 className="font-black text-white text-lg flex items-center gap-2"><Search className="w-5 h-5 text-blue-400" /> Xe này có lừa đảo không?</h3>
+        <h3 className="font-black text-white text-lg flex items-center gap-2"><Search className="w-5 h-5 text-sky-400" /> Xe này có lừa đảo không?</h3>
         <input className={inputCls} placeholder="Gõ biển số xe, tên nhà xe hoặc số điện thoại" value={query} maxLength={40} onChange={(e) => setQuery(e.target.value)} />
         {searching && <p className="text-xs text-slate-400">Đang tra trong kho cộng đồng…</p>}
         {communityDown && query.trim().length >= 3 && <p className="text-[11px] text-slate-500">Chưa kết nối được kho cộng đồng — kết quả dưới đây là danh sách có sẵn trong máy.</p>}

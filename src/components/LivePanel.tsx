@@ -47,7 +47,7 @@ export default function LivePanel({ onOpenLive }: Props) {
 
   return (
     <section className="bg-panel rounded-3xl p-4 border border-slate-700/60 space-y-3">
-      <h3 className="font-black text-white text-lg flex items-center gap-2"><Radio className="w-5 h-5 text-red-400" /> Theo dõi trực tiếp</h3>
+      <h3 className="font-black text-white text-lg flex items-center gap-2"><Radio className="w-5 h-5 text-sky-400" /> Theo dõi trực tiếp</h3>
 
       {cfg ? (
         <>

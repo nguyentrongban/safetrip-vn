@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, Polyline, TileLayer, useMap } from 'react-leaflet';
 import { ArrowLeft, Gauge, RefreshCw } from 'lucide-react';
 import { fetchPosition, type LiveConfig, type LiveRow } from '../utils/live';
+import MapboxLiveMap from './MapboxLiveMap';
+import { useMapEngine, type SavedView } from '../hooks/useMapEngine';
 
 function Follow({ row }: { row: LiveRow | null }) {
   const map = useMap();
@@ -12,6 +14,27 @@ function Follow({ row }: { row: LiveRow | null }) {
     else map.panTo([row.lat, row.lng], { animate: true });
   }, [row, map]);
   return null;
+}
+
+/** The original Leaflet live map — kept intact as the fallback renderer. */
+function LeafletLiveMap({ row, trail, initialView }: { row: LiveRow | null; trail: [number, number][]; initialView?: SavedView | null }) {
+  return (
+    <MapContainer center={initialView?.center ?? [14.0583, 108.2772]} zoom={initialView?.zoom ?? 6} style={{ height: '100%', width: '100%' }}>
+      <TileLayer attribution="Tiles &copy; Esri" url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}" />
+      <Follow row={row} />
+      {trail.length > 1 && <Polyline positions={trail} pathOptions={{ color: '#3B82F6', weight: 4, opacity: 0.8 }} />}
+      {row && <CircleMarker center={[row.lat, row.lng]} radius={14} pathOptions={{ color: '#fff', weight: 3, fillColor: '#EF4444', fillOpacity: 1 }} />}
+    </MapContainer>
+  );
+}
+
+/** Engine-choice wrapper: Mapbox GL primary, automatic silent Leaflet fallback. */
+function LiveMapFrame({ row, trail }: { row: LiveRow | null; trail: [number, number][] }) {
+  const { engine, savedView, fail } = useMapEngine();
+  if (engine === 'mapbox') {
+    return <MapboxLiveMap row={row} trail={trail} initialView={savedView} onFail={fail} />;
+  }
+  return <LeafletLiveMap row={row} trail={trail} initialView={savedView} />;
 }
 
 interface Props { code: string; cfg: LiveConfig; onClose: () => void }
@@ -55,25 +78,20 @@ export default function LiveView({ code, cfg, onClose }: Props) {
           <h2 className="font-black text-white text-lg leading-none">Đang theo dõi trực tiếp</h2>
           <p className="text-xs text-slate-400 mt-1">Mã: <b className="text-white tracking-widest">{code}</b></p>
         </div>
-        <span className={`text-[11px] font-bold px-2.5 py-1.5 rounded-full border ${row && !row.active ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : row && stale ? 'bg-red-600/25 text-red-300 border-red-500' : row ? 'bg-red-500/15 text-red-300 border-red-500/40' : 'bg-slate-800 text-slate-300 border-slate-600'}`}>
+        <span className={`text-[11px] font-bold px-2.5 py-1.5 rounded-full border ${row && !row.active ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : row && stale ? 'bg-red-600/25 text-red-300 border-red-500' : row ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-slate-800 text-slate-300 border-slate-600'}`}>
           {row && !row.active ? 'ĐÃ KẾT THÚC' : row && stale ? '⚠️ DỪNG ĐỘT NGỘT' : row ? '● TRỰC TIẾP' : 'Đang chờ tín hiệu'}
         </span>
       </div>
 
       <div className="rounded-3xl overflow-hidden border border-slate-700 h-[52dvh] min-h-[320px]">
-        <MapContainer center={[14.0583, 108.2772]} zoom={6} style={{ height: '100%', width: '100%' }}>
-          <TileLayer attribution="Tiles &copy; Esri" url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}" />
-          <Follow row={row} />
-          {trail.length > 1 && <Polyline positions={trail} pathOptions={{ color: '#3B82F6', weight: 4, opacity: 0.8 }} />}
-          {row && <CircleMarker center={[row.lat, row.lng]} radius={14} pathOptions={{ color: '#fff', weight: 3, fillColor: '#EF4444', fillOpacity: 1 }} />}
-        </MapContainer>
+        <LiveMapFrame row={row} trail={trail} />
       </div>
 
       <div className="bg-panel rounded-3xl p-4 border border-slate-700/60">
         {notFound && !row && <p className="text-base text-amber-300 font-bold">Chưa thấy tín hiệu của mã này. Người thân chưa bắt đầu đi, hoặc sai mã.</p>}
         {row && (
           <div className="space-y-1.5">
-            <p className="text-base text-white flex items-center gap-2"><RefreshCw className="w-4 h-4 text-blue-400" /> Cập nhật: <b>{ageSec !== null ? (ageSec < 5 ? 'vừa xong' : `${ageSec} giây trước`) : '—'}</b></p>
+            <p className="text-base text-white flex items-center gap-2"><RefreshCw className="w-4 h-4 text-sky-400" /> Cập nhật: <b>{ageSec !== null ? (ageSec < 5 ? 'vừa xong' : `${ageSec} giây trước`) : '—'}</b></p>
             <p className="text-base text-white flex items-center gap-2"><Gauge className="w-4 h-4 text-emerald-400" /> Tốc độ xe: <b>{row.speed !== null ? `${Math.round(row.speed)} km/h` : '—'}</b></p>
             {stale && row.active && (
               <div className="bg-red-600/15 border-2 border-red-500 rounded-2xl p-3.5 space-y-1.5">

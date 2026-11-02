@@ -40,7 +40,7 @@ export default function HandbookTab() {
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
                     <ul className="px-4 pb-4 space-y-2">
                       {a.body.map((line, i) => (
-                        <li key={i} className="text-sm text-slate-200 flex gap-2"><span className="text-blue-400 font-black shrink-0">{i + 1}.</span>{line}</li>
+                        <li key={i} className="text-sm text-slate-200 flex gap-2"><span className="text-sky-400 font-black shrink-0">{i + 1}.</span>{line}</li>
                       ))}
                     </ul>
                   </motion.div>
@@ -51,7 +51,7 @@ export default function HandbookTab() {
         })}
       </div>
 
-      <div className="bg-blue-500/10 border border-blue-500/40 rounded-2xl p-4 text-sm text-blue-100">
+      <div className="bg-sky-500/10 border border-sky-500/40 rounded-2xl p-4 text-sm text-sky-100">
         <b>Mật mã an toàn với gia đình:</b> thống nhất trước một câu bình thường, ví dụ <i>"cho con gửi lời hỏi thăm bà"</i> — khi bạn nói câu này trong cuộc gọi, người thân hiểu ngay là bạn đang bị khống chế và sẽ gọi 113 kèm vị trí cuối cùng của bạn.
       </div>
     </div>
