@@ -121,7 +121,9 @@ export default function App() {
 
       <header className="sticky top-0 z-30 bg-[#0F172A]/95 backdrop-blur border-b border-slate-800 px-4 py-3">
         <div className={`${SHELL} flex items-center gap-3`}>
-          <img src="/logo.png" alt="SafeTrip VN" className="w-10 h-10 rounded-xl shrink-0" />
+          <span className="shrink-0 rounded-[14px] bg-gradient-to-br from-sky-400 to-emerald-400 p-[2px]">
+            <img src="/logo.png" alt="SafeTrip VN" className="w-10 h-10 rounded-xl block" />
+          </span>
           <h1 className="flex-1 font-black text-white text-lg leading-none">SafeTrip VN</h1>
           <button onClick={() => { if (!gpsOk) geo.requestOnce(); }} className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full border ${gpsOk ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-red-500/15 text-red-300 border-red-500/40'}`}>
             <Satellite className="w-4 h-4" /> {gpsOk ? 'Định vị: Đang bật' : geo.status === 'error' ? 'Định vị: Chưa có tín hiệu' : geo.status === 'locating' ? 'Định vị: Đang tìm…' : 'Định vị: Đang tắt'}
@@ -189,7 +191,8 @@ export default function App() {
       <nav className="fixed bottom-0 inset-x-0 z-30 bg-[#0B1220]/95 backdrop-blur border-t border-slate-800" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className={`${SHELL} grid grid-cols-4`}>
           {TABS.map(({ id, label, Icon }) => (
-            <button key={id} onClick={() => setTab(id)} className={`relative py-2.5 flex flex-col items-center gap-0.5 text-xs font-bold ${tab === id ? 'text-blue-400' : 'text-slate-400'}`}>
+            <button key={id} onClick={() => setTab(id)} className={`relative py-2.5 flex flex-col items-center gap-0.5 text-xs font-bold ${tab === id ? 'text-sky-400' : 'text-slate-400'}`}>
+              {tab === id && <span className="absolute top-0 h-1 w-10 rounded-full bg-gradient-to-r from-sky-400 to-emerald-400" />}
               <Icon className="w-6 h-6" /> {label}
               {id === 'home' && alarm.alarming && <span className="absolute top-1 right-4 w-2 h-2 rounded-full bg-red-500 animate-ping" />}
             </button>
