@@ -106,6 +106,37 @@ export function routeProgress(point: GeoPoint, route: [number, number][]): Route
   return { offKm: bestOff, remainingKm: Math.max(0, bestRemaining) };
 }
 
+/** The part of the route still AHEAD of a point: the polyline from the
+ * nearest spot on the route to the destination. This is what the map
+ * draws while travelling — the blue line "burns away" behind the driver,
+ * Google-Maps/Grab style. Returns the whole route when it has <2 points. */
+export function remainingRoutePoints(point: GeoPoint, route: [number, number][]): [number, number][] {
+  if (route.length < 2) return route;
+  const lat0 = (point.lat * Math.PI) / 180;
+  const toXY = (la: number, ln: number) => ({
+    x: 6371 * Math.cos(lat0) * (((ln - point.lng) * Math.PI) / 180),
+    y: 6371 * (((la - point.lat) * Math.PI) / 180),
+  });
+  let bestD = Infinity;
+  let bestI = 0;
+  let bestT = 0;
+  for (let i = 0; i < route.length - 1; i++) {
+    const A = toXY(route[i][0], route[i][1]);
+    const B = toXY(route[i + 1][0], route[i + 1][1]);
+    const dx = B.x - A.x; const dy = B.y - A.y;
+    const lenSq = dx * dx + dy * dy;
+    let t = lenSq === 0 ? 0 : -(A.x * dx + A.y * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const cx = A.x + t * dx; const cy = A.y + t * dy;
+    const d = Math.sqrt(cx * cx + cy * cy);
+    if (d < bestD) { bestD = d; bestI = i; bestT = t; }
+  }
+  const a = route[bestI];
+  const b = route[bestI + 1];
+  const proj: [number, number] = [a[0] + (b[0] - a[0]) * bestT, a[1] + (b[1] - a[1]) * bestT];
+  return [proj, ...route.slice(bestI + 1)];
+}
+
 /** Distance in KM from point P to segment A-B, using a local equirectangular projection (accurate at border scale). */
 export function pointToSegmentKm(p: GeoPoint, a: GeoPoint, b: GeoPoint): number {
   const R = 6371;
