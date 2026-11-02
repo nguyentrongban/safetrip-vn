@@ -23,6 +23,9 @@ interface Props {
   route?: [number, number][] | null;
   /** Destination point to flag, if picked. */
   dest?: PlacePoint | null;
+  /** true: camera follows the user. false (setup preview): frame the
+   * whole route instead. */
+  followUser?: boolean;
 }
 
 const DEST_HTML = '<div style="width:30px;height:30px;border-radius:50%;background:#fff;border:2.5px solid #10B981;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 8px rgba(15,23,42,.35)">🏁</div>';
@@ -140,7 +143,7 @@ function addGateMarkers(map: MapboxMap, gl: MapboxGL): void {
  * Any engine failure is reported through onFail — the wrapper then swaps in
  * the Leaflet map at the same view, silently.
  */
-export default function MapboxMapView({ lat, lng, onFail, route = null, dest = null }: Props) {
+export default function MapboxMapView({ lat, lng, onFail, route = null, dest = null, followUser = true }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const glRef = useRef<MapboxGL | null>(null);
@@ -150,6 +153,8 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
   routeRef.current = route;
   const destRef = useRef(dest);
   destRef.current = dest;
+  const followUserRef = useRef(followUser);
+  followUserRef.current = followUser;
   const bootIdRef = useRef(0);
   const failedRef = useRef(false);
   const loadedRef = useRef(false);
@@ -224,6 +229,10 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
         addGateMarkers(map, gl);
         upsertRouteLayer(map, routeRef.current);
         syncDestMarker();
+        if (routeRef.current && routeRef.current.length > 1 && !followUserRef.current) {
+          fitKeyRef.current = `${routeRef.current.length}|${routeRef.current[0][0]},${routeRef.current[0][1]}`;
+          fitToRoute(routeRef.current);
+        }
         const { lat: pla, lng: pln } = posRef.current;
         if (pla !== null && pln !== null && !userMarkerRef.current) {
           const el = document.createElement('div');
@@ -261,8 +270,10 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
         userMarkerRef.current.setLngLat([lng, lat]);
       }
     }
-    map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 11), duration: 800 });
-  }, [lat, lng]);
+    if (followUser) {
+      map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 11), duration: 800 });
+    }
+  }, [lat, lng, followUser]);
 
   /* ---------------- route line + destination flag ---------------- */
   const syncDestMarker = () => {
@@ -292,6 +303,29 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route, dest]);
 
+  /* ---------------- frame the whole route (setup preview) ---------- */
+  const fitKeyRef = useRef('');
+  const fitToRoute = (r: [number, number][]) => {
+    const map = mapRef.current;
+    if (!map || r.length < 2) return;
+    let minLa = 90, maxLa = -90, minLn = 180, maxLn = -180;
+    for (const [la, ln] of r) {
+      if (la < minLa) minLa = la;
+      if (la > maxLa) maxLa = la;
+      if (ln < minLn) minLn = ln;
+      if (ln > maxLn) maxLn = ln;
+    }
+    try { map.fitBounds([[minLn, minLa], [maxLn, maxLa]], { padding: 48, maxZoom: 15, duration: 700 }); } catch { /* noop */ }
+  };
+  useEffect(() => {
+    if (!route || route.length < 2 || followUser || !loadedRef.current) return;
+    const key = `${route.length}|${route[0][0]},${route[0][1]}|${route[route.length - 1][0]},${route[route.length - 1][1]}`;
+    if (fitKeyRef.current === key) return;
+    fitKeyRef.current = key;
+    fitToRoute(route);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, followUser]);
+
   /* ---------------- street / satellite toggle ---------------- */
   const switchMode = (m: 'street' | 'satellite') => {
     if (m === mode) return;
@@ -316,6 +350,14 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
         <button onClick={() => switchMode('street')} className={`px-2.5 py-1.5 ${mode === 'street' ? 'bg-blue-600 text-white' : 'bg-slate-900/90 text-slate-300'}`}>🗺️ Đường</button>
         <button onClick={() => switchMode('satellite')} className={`px-2.5 py-1.5 ${mode === 'satellite' ? 'bg-blue-600 text-white' : 'bg-slate-900/90 text-slate-300'}`}>🛰️ Vệ tinh</button>
       </div>
+      {route && route.length > 1 && (
+        <button
+          onClick={() => fitToRoute(route)}
+          className="absolute top-11 right-2 z-[500] px-2.5 py-1.5 rounded-xl border border-slate-600 shadow-lg text-[11px] font-bold bg-slate-900/90 text-slate-200"
+        >
+          🛣 Toàn tuyến
+        </button>
+      )}
     </div>
   );
 }

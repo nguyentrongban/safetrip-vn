@@ -68,9 +68,31 @@ const SATELLITE_PROVIDERS = [
   { name: 'Esri Satellite', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains: undefined as string | undefined, attribution: 'Tiles &copy; Esri World Imagery' },
 ];
 
-function FollowUser({ lat, lng }: { lat: number | null; lng: number | null }) {
+function FollowUser({ lat, lng, enabled }: { lat: number | null; lng: number | null; enabled: boolean }) {
   const map = useMap();
-  useEffect(() => { if (lat !== null && lng !== null) map.setView([lat, lng], Math.max(map.getZoom(), 11), { animate: true }); }, [lat, lng, map]);
+  useEffect(() => { if (enabled && lat !== null && lng !== null) map.setView([lat, lng], Math.max(map.getZoom(), 11), { animate: true }); }, [lat, lng, map, enabled]);
+  return null;
+}
+
+function MapGrabber({ setMap }: { setMap: (m: L.Map) => void }) {
+  const map = useMap();
+  useEffect(() => { setMap(map); }, [map, setMap]);
+  return null;
+}
+
+/** Setup-preview framing: when a route appears and we are NOT in
+ * follow mode, zoom out so the whole suggestion (start → destination)
+ * is visible at once, Google-Maps style. */
+function RouteFitter({ route, followUser }: { route?: [number, number][] | null; followUser: boolean }) {
+  const map = useMap();
+  const keyRef = useRef('');
+  useEffect(() => {
+    if (!route || route.length < 2 || followUser) return;
+    const key = `${route.length}|${route[0][0]},${route[0][1]}|${route[route.length - 1][0]},${route[route.length - 1][1]}`;
+    if (keyRef.current === key) return;
+    keyRef.current = key;
+    map.fitBounds(L.latLngBounds(route.map(([la, ln]) => [la, ln] as [number, number])), { padding: [36, 36], maxZoom: 15, animate: true });
+  }, [route, followUser, map]);
   return null;
 }
 
@@ -84,6 +106,9 @@ interface Props {
   route?: [number, number][] | null;
   /** Destination point to flag, if picked. */
   dest?: { lat: number; lng: number; name: string } | null;
+  /** true: camera follows the user. false (setup preview): frame the
+   * whole route instead. */
+  followUser?: boolean;
 }
 
 const destIcon = L.divIcon({
@@ -93,8 +118,9 @@ const destIcon = L.divIcon({
 });
 
 /** The original Leaflet/Esri map — kept intact as the fallback renderer. */
-export default function LeafletMapView({ lat, lng, initialView, route, dest }: Props) {
+export default function LeafletMapView({ lat, lng, initialView, route, dest, followUser = true }: Props) {
   const center: [number, number] = initialView?.center ?? (lat !== null && lng !== null ? [lat, lng] : [14.0583, 108.2772]);
+  const [mapInst, setMapInst] = useState<L.Map | null>(null);
   const [mode, setMode] = useState<'street' | 'satellite'>('street');
   const [providerIdx, setProviderIdx] = useState(0);
   const [tilesLoaded, setTilesLoaded] = useState(0);
@@ -135,7 +161,9 @@ export default function LeafletMapView({ lat, lng, initialView, route, dest }: P
             },
           }}
         />
-        <FollowUser lat={lat} lng={lng} />
+        <FollowUser lat={lat} lng={lng} enabled={followUser} />
+        <MapGrabber setMap={setMapInst} />
+        <RouteFitter route={route} followUser={followUser} />
         {lat !== null && lng !== null && (
           <Marker position={[lat, lng]} icon={userIcon}><Popup>Vị trí của bạn</Popup></Marker>
         )}
@@ -182,6 +210,14 @@ export default function LeafletMapView({ lat, lng, initialView, route, dest }: P
         <button onClick={() => switchMode('street')} className={`px-2.5 py-1.5 ${mode === 'street' ? 'bg-blue-600 text-white' : 'bg-slate-900/90 text-slate-300'}`}>🗺️ Đường</button>
         <button onClick={() => switchMode('satellite')} className={`px-2.5 py-1.5 ${mode === 'satellite' ? 'bg-blue-600 text-white' : 'bg-slate-900/90 text-slate-300'}`}>🛰️ Vệ tinh</button>
       </div>
+      {route && route.length > 1 && (
+        <button
+          onClick={() => { if (mapInst) mapInst.fitBounds(L.latLngBounds(route.map(([la, ln]) => [la, ln] as [number, number])), { padding: [36, 36], maxZoom: 15, animate: true }); }}
+          className="absolute top-11 right-2 z-[500] px-2.5 py-1.5 rounded-xl border border-slate-600 shadow-lg text-[11px] font-bold bg-slate-900/90 text-slate-200"
+        >
+          🛣 Toàn tuyến
+        </button>
+      )}
       {tilesLoaded === 0 && (
         <div className="absolute inset-x-0 bottom-0 z-[500] pointer-events-none">
           <p className={`text-center text-[11px] font-bold py-1.5 ${showNoTilesHint ? 'bg-red-600/90 text-white' : 'bg-slate-900/85 text-slate-300'}`}>

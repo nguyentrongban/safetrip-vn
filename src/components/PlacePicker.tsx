@@ -16,11 +16,16 @@ interface NominatimHit {
   lat: string;
   lon: string;
   display_name: string;
+  name?: string;
   address?: Record<string, string>;
 }
 
 function shortName(hit: NominatimHit): string {
+  // Google-Maps style: the place's own name first ("Chợ Bến Thành"),
+  // then a street address ("55B Nguyễn Thị Minh Khai"), then the area.
+  if (hit.name) return hit.name;
   const a = hit.address ?? {};
+  if (a.house_number || a.road) return [a.house_number, a.road].filter(Boolean).join(' ');
   const ward = a.suburb || a.quarter || a.village || a.hamlet || a.neighbourhood || '';
   const district = a.city_district || a.county || a.town || a.district || '';
   const province = a.city || a.state || '';
@@ -32,7 +37,7 @@ function shortName(hit: NominatimHit): string {
 async function nominatim(path: string): Promise<NominatimHit[] | null> {
   try {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 9000);
+    const t = setTimeout(() => ctrl.abort(), 12000);
     const res = await fetch(`https://nominatim.openstreetmap.org/${path}`, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
     clearTimeout(t);
     if (!res.ok) return null;
@@ -43,8 +48,73 @@ async function nominatim(path: string): Promise<NominatimHit[] | null> {
   }
 }
 
-const searchPlaces = (q: string) =>
-  nominatim(`search?format=jsonv2&limit=6&countrycodes=vn&addressdetails=1&accept-language=vi&q=${encodeURIComponent(q)}`);
+/** Photon (Komoot) — an independent OSM geocoder on separate servers.
+ * Nominatim's public instance rate-limits carrier-NAT IPs hard (429s),
+ * which is exactly how most VN phone users connect; Photon is the net. */
+interface PhotonFeature {
+  geometry: { coordinates: [number, number] };
+  properties: Record<string, string>;
+}
+
+async function photon(q: string, limit: number): Promise<NominatimHit[] | null> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12000);
+    const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=${limit}`, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const j = (await res.json()) as { features?: PhotonFeature[] };
+    if (!Array.isArray(j.features)) return null;
+    return j.features.map((f) => {
+      const p = f.properties;
+      const display = [p.name, p.street, p.district, p.city, p.state, p.country].filter(Boolean).join(', ');
+      return {
+        lat: String(f.geometry.coordinates[1]),
+        lon: String(f.geometry.coordinates[0]),
+        display_name: display || q,
+        name: p.name || undefined,
+        address: { suburb: p.district || '', city: p.city || '', state: p.state || '', road: p.street || '', house_number: p.housenumber || '' },
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Google-Maps-style type-ahead: ask BOTH geocoders in parallel and
+ * merge (Photon is built for autocomplete/partial addresses, Nominatim
+ * has the administrative boundaries). Deduped by rounded coordinates. */
+const searchPlaces = async (q: string): Promise<NominatimHit[] | null> => {
+  const [n, p] = await Promise.all([
+    nominatim(`search?format=jsonv2&limit=6&countrycodes=vn&addressdetails=1&accept-language=vi&q=${encodeURIComponent(q)}`),
+    photon(q, 6),
+  ]);
+  if (!n && !p) return null;
+  const merged: NominatimHit[] = [];
+  const seen = new Set<string>();
+  for (const h of [...(p ?? []), ...(n ?? [])]) {
+    const key = `${parseFloat(h.lat).toFixed(4)},${parseFloat(h.lon).toFixed(4)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(h);
+    if (merged.length >= 7) break;
+  }
+  return merged;
+};
+
+/** Geocode ONE place (ward picking): try name variants on Nominatim,
+ * then Photon — first hit wins. */
+async function geocodeOne(queries: string[]): Promise<{ lat: number; lng: number } | null> {
+  for (const q of queries) {
+    const hits = await nominatim(`search?format=jsonv2&limit=1&countrycodes=vn&accept-language=vi&q=${encodeURIComponent(q)}`);
+    if (hits && hits.length > 0) return { lat: parseFloat(hits[0].lat), lng: parseFloat(hits[0].lon) };
+  }
+  for (const q of queries) {
+    const hits = await photon(q, 1);
+    if (hits && hits.length > 0) return { lat: parseFloat(hits[0].lat), lng: parseFloat(hits[0].lon) };
+  }
+  return null;
+}
 
 interface Props {
   label: string;
@@ -78,7 +148,7 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
     setSearching(true);
     debounceRef.current = window.setTimeout(() => {
       void searchPlaces(q).then((hits) => { setResults(hits); setSearching(false); });
-    }, 550);
+    }, 400);
     return () => { if (debounceRef.current) window.clearTimeout(debounceRef.current); };
   }, [query, mode]);
 
@@ -99,14 +169,17 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
     if (!prov || !wardName) return;
     setWardBusy(true);
     setWardNote('');
-    const hits = await nominatim(
-      `search?format=jsonv2&limit=1&countrycodes=vn&accept-language=vi&q=${encodeURIComponent(`${wardName}, ${prov.name}`)}`,
-    );
+    const bare = wardName.replace(/^(Phường|Xã|Thị trấn)\s+/i, '');
+    const point = await geocodeOne([
+      `${wardName}, ${prov.name}`,
+      `${bare}, ${prov.name}`,
+      wardName,
+    ]);
     setWardBusy(false);
-    if (hits && hits.length > 0) {
-      onChange({ lat: parseFloat(hits[0].lat), lng: parseFloat(hits[0].lon), name: `${wardName}, ${prov.name}` });
+    if (point) {
+      onChange({ lat: point.lat, lng: point.lng, name: `${wardName}, ${prov.name}` });
     } else {
-      setWardNote('Chưa tìm thấy vị trí của xã/phường này — thử lại bằng ô Tìm kiếm.');
+      setWardNote('Máy chủ tìm kiếm đang bận hoặc mạng yếu — đợi vài giây rồi chọn lại phường xã, hoặc dùng ô Tìm kiếm.');
     }
   };
 
@@ -156,7 +229,7 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Gõ tên nơi, đường, phường xã…"
+                  placeholder="Tên địa điểm, số nhà, tên đường…"
                   className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-10 pr-4 py-3 text-base text-white placeholder:text-slate-500"
                 />
               </div>
@@ -164,22 +237,26 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
               {results !== null && !searching && results.length === 0 && (
                 <p className="text-xs text-slate-400">Không thấy nơi này. Thử gõ thêm tên tỉnh, hoặc dùng mục Phường xã.</p>
               )}
-              {results?.map((h, i) => (
-                <button
-                  key={`${h.lat}-${h.lon}-${i}`}
-                  type="button"
-                  onClick={() => onChange({ lat: parseFloat(h.lat), lng: parseFloat(h.lon), name: shortName(h) })}
-                  className="w-full text-left bg-slate-900 border border-slate-700 rounded-2xl px-3.5 py-2.5 hover:border-sky-500"
-                >
-                  <span className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-bold text-white truncate">{shortName(h)}</span>
-                      <span className="block text-[11px] text-slate-400 truncate">{h.display_name}</span>
-                    </span>
-                  </span>
-                </button>
-              ))}
+              {results && results.length > 0 && (
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {results.map((h, i) => (
+                    <button
+                      key={`${h.lat}-${h.lon}-${i}`}
+                      type="button"
+                      onClick={() => onChange({ lat: parseFloat(h.lat), lng: parseFloat(h.lon), name: shortName(h) })}
+                      className="w-full text-left bg-slate-900 border border-slate-700 rounded-2xl px-3.5 py-2.5 hover:border-sky-500"
+                    >
+                      <span className="flex items-start gap-2">
+                        <MapPin className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-bold text-white truncate">{shortName(h)}</span>
+                          <span className="block text-[11px] text-slate-400 truncate">{h.display_name}</span>
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

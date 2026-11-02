@@ -10,6 +10,9 @@ interface Props {
   route?: [number, number][] | null;
   /** Destination point to flag on the map, if picked. */
   dest?: PlacePoint | null;
+  /** true: camera follows the user. false (setup preview): the map
+   * frames the whole route instead of chasing the GPS dot. */
+  followUser?: boolean;
 }
 
 /**
@@ -19,10 +22,10 @@ interface Props {
  * at the same view — and stays there for the rest of the session.
  * With no token configured this renders exactly the v1.24 Leaflet map.
  */
-export default function MapView({ lat, lng, route = null, dest = null }: Props) {
+export default function MapView({ lat, lng, route = null, dest = null, followUser = true }: Props) {
   const { engine, savedView, fail } = useMapEngine();
   if (engine === 'mapbox') {
-    return <MapboxMapView lat={lat} lng={lng} onFail={fail} route={route} dest={dest} />;
+    return <MapboxMapView lat={lat} lng={lng} onFail={fail} route={route} dest={dest} followUser={followUser} />;
   }
-  return <LeafletMapView lat={lat} lng={lng} initialView={savedView} route={route} dest={dest} />;
+  return <LeafletMapView lat={lat} lng={lng} initialView={savedView} route={route} dest={dest} followUser={followUser} />;
 }

@@ -9,7 +9,7 @@ import type { GeoState } from '../hooks/useGeolocation';
 import { formatCountdown, useDeadMansSwitch } from '../hooks/useDeadMansSwitch';
 import { useLiveSmsUpdates } from '../hooks/useLiveSmsUpdates';
 import { BORDER_LINES, BORDER_LINE_ALERT_KM, BORDER_POINTS, BORDER_RADIUS_KM } from '../utils/data';
-import { distanceToBorderLine, formatKm, haversineKm, nearestBorder, routeProgress } from '../utils/geo';
+import { distanceToBorderLine, formatKm, haversineKm, nearestBorder, remainingRoutePoints, routeProgress } from '../utils/geo';
 import { fetchRoute, type RouteResult } from '../utils/routing';
 import { loadTrip, saveTrip } from '../utils/storage';
 import type { PlacePoint, TripConfig } from '../types';
@@ -58,6 +58,10 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
   const [borderAlertedFor, setBorderAlertedFor] = useState<string | null>(null);
   const [devAlarm, setDevAlarm] = useState<DevAlarm>(null);
   const [liveRemainingKm, setLiveRemainingKm] = useState<number | null>(null);
+  /** The route as drawn mid-trip: only the part still ahead (the blue
+   * line burns away behind the driver). null = draw the stored route. */
+  const [displayRoute, setDisplayRoute] = useState<[number, number][] | null>(null);
+  const displayRouteRef = useRef<[number, number][] | null>(null);
   const [rerouteNote, setRerouteNote] = useState('');
 
   const routeKeyRef = useRef<string>('');
@@ -139,6 +143,14 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
     const pos = { lat: geo.lat, lng: geo.lng };
     const prog = routeProgress(pos, t.route);
     setLiveRemainingKm(prog.remainingKm);
+    // Trim the drawn line to what is still ahead (update only when the
+    // head of the line actually advanced, to avoid re-render churn).
+    const trimmed = remainingRoutePoints(pos, t.route);
+    const prev = displayRouteRef.current;
+    if (!prev || prev.length !== trimmed.length || haversineKm(prev[0][0], prev[0][1], trimmed[0][0], trimmed[0][1]) > 0.04) {
+      displayRouteRef.current = trimmed;
+      setDisplayRoute(trimmed);
+    }
     const destKm = haversineKm(pos.lat, pos.lng, t.destLat, t.destLng);
     const now = Date.now();
 
@@ -220,11 +232,17 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
     setTrip(null); saveTrip(null); geo.stopWatch();
     setDevAlarm(null);
     setLiveRemainingKm(null);
+    setDisplayRoute(null);
+    displayRouteRef.current = null;
     offSinceRef.current = null;
     samplesRef.current = [];
   };
 
-  const mapRoute = trip ? trip.route : routeInfo?.points;
+  const mapRoute = trip ? (displayRoute ?? trip.route) : routeInfo?.points;
+  /** Follow the driver with the camera while travelling (or when no
+   * preview route is on screen); in setup-preview the map instead
+   * frames the whole suggested route. */
+  const followUser = !!trip || !routeInfo;
   const mapDest: PlacePoint | null = trip
     ? (trip.destLat !== undefined && trip.destLng !== undefined ? { lat: trip.destLat, lng: trip.destLng, name: trip.destination } : null)
     : destPick;
@@ -235,7 +253,7 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
     <LiveUpdateBanner visible={!!live.prompt} onSend={live.sendUpdate} onDismiss={live.dismiss} />
     <div className="grid gap-4 lg:grid-cols-[1fr_340px] items-start">
       <div className="space-y-3 min-w-0">
-        <MapView lat={geo.lat} lng={geo.lng} route={mapRoute ?? null} dest={mapDest} />
+        <MapView lat={geo.lat} lng={geo.lng} route={mapRoute ?? null} dest={mapDest} followUser={followUser} />
         {nearest && nearestLine && (
           <div className={`grid grid-cols-2 gap-2 ${nearBorder ? '' : ''}`}>
             <div className={`rounded-3xl p-3.5 border text-center ${nearLine ? 'bg-red-500/15 border-red-500' : 'bg-panel border-slate-700/60'}`}>
