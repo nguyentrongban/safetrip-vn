@@ -3,6 +3,7 @@ import type { Map as MapboxMap, Marker as MapboxMarker, GeoJSONSource } from 'ma
 import type { LiveRow } from '../utils/live';
 import {
   MAPBOX_STREET_STYLE,
+  addLandmarkMarkers,
   addSovereigntyMarkers,
   applyBrandPaint,
   loadMapboxGL,
@@ -101,6 +102,7 @@ export default function MapboxLiveMap({ row, trail, initialView, onFail }: Props
         loadedRef.current = true;
         applyBrandPaint(map, { satellite: false });
         addSovereigntyMarkers(map);
+        addLandmarkMarkers(map);
         map.addSource('safetrip-trail', {
           type: 'geojson',
           data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [] } },

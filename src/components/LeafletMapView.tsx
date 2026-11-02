@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { BORDER_LINES, BORDER_POINTS, BORDER_RADIUS_KM, ISLAND_GROUPS } from '../utils/data';
+import { BORDER_LINES, BORDER_POINTS, BORDER_RADIUS_KM, ISLAND_GROUPS, LANDMARKS, SEA_LABEL } from '../utils/data';
 
 const userIcon = L.divIcon({
   className: '',
@@ -27,6 +27,25 @@ const islandIcon = (short: string, en: string) => L.divIcon({
     </div>
   </div>`,
   iconSize: [150, 66], iconAnchor: [75, 14],
+});
+
+/** Sea name overlay: the raster tiles print "South China Sea" into the
+ * image itself (cannot be edited), so we lay our own BIỂN ĐÔNG over the
+ * middle of the sea. Non-interactive, sits under the island flags. */
+const seaLabelIcon = L.divIcon({
+  className: '',
+  html: `<div style="font-size:16px;font-weight:800;letter-spacing:.38em;color:#2E6DA8;text-shadow:0 0 6px #fff,0 0 6px #fff,0 0 10px #fff;white-space:nowrap">${SEA_LABEL.name}</div>`,
+  iconSize: [230, 24], iconAnchor: [115, 12],
+});
+
+/** Famous-landmark pin: cute pink teardrop + name pill. */
+const landmarkIcon = (name: string) => L.divIcon({
+  className: '',
+  html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+    <svg width="24" height="30" viewBox="0 0 24 30"><path d="M12 0C6.5 0 2 4.5 2 10c0 7.5 10 18 10 18s10-10.5 10-18C22 4.5 17.5 0 12 0z" fill="#F472B6" stroke="#fff" stroke-width="1.6"/><circle cx="12" cy="10" r="4" fill="#fff"/></svg>
+    <div style="background:rgba(255,255,255,.94);border:1.5px solid #F472B6;border-radius:999px;padding:1.5px 8px;font-size:10px;font-weight:800;color:#A12354;white-space:nowrap;box-shadow:0 2px 6px rgba(15,23,42,.22)">${name}</div>
+  </div>`,
+  iconSize: [130, 56], iconAnchor: [65, 29],
 });
 
 /**
@@ -61,10 +80,20 @@ interface Props {
   /** When the Mapbox engine failed mid-session, the wrapper hands over its
    * last view so the fallback opens in the same place. */
   initialView?: { center: [number, number]; zoom: number } | null;
+  /** Predicted-route polyline ([lat, lng] pairs) to draw, if any. */
+  route?: [number, number][] | null;
+  /** Destination point to flag, if picked. */
+  dest?: { lat: number; lng: number; name: string } | null;
 }
 
+const destIcon = L.divIcon({
+  className: '',
+  html: '<div style="width:30px;height:30px;border-radius:50%;background:#fff;border:2.5px solid #10B981;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 8px rgba(15,23,42,.35)">🏁</div>',
+  iconSize: [30, 30], iconAnchor: [15, 15],
+});
+
 /** The original Leaflet/Esri map — kept intact as the fallback renderer. */
-export default function LeafletMapView({ lat, lng, initialView }: Props) {
+export default function LeafletMapView({ lat, lng, initialView, route, dest }: Props) {
   const center: [number, number] = initialView?.center ?? (lat !== null && lng !== null ? [lat, lng] : [14.0583, 108.2772]);
   const [mode, setMode] = useState<'street' | 'satellite'>('street');
   const [providerIdx, setProviderIdx] = useState(0);
@@ -110,6 +139,17 @@ export default function LeafletMapView({ lat, lng, initialView }: Props) {
         {lat !== null && lng !== null && (
           <Marker position={[lat, lng]} icon={userIcon}><Popup>Vị trí của bạn</Popup></Marker>
         )}
+        {route && route.length > 1 && (
+          <>
+            <Polyline positions={route} pathOptions={{ color: '#FFFFFF', weight: 9, opacity: 0.75 }} />
+            <Polyline positions={route} pathOptions={{ color: '#0EA5E9', weight: 5, opacity: 0.95 }} />
+          </>
+        )}
+        {dest && (
+          <Marker position={[dest.lat, dest.lng]} icon={destIcon} zIndexOffset={900}>
+            <Popup><b>🏁 Điểm đến</b><br />{dest.name}</Popup>
+          </Marker>
+        )}
         {BORDER_LINES.map((line) => (
           <Fragment key={line.id}>
             <Polyline positions={line.points} pathOptions={{ color: '#EF4444', weight: 16, opacity: 0.13 }} />
@@ -125,6 +165,12 @@ export default function LeafletMapView({ lat, lng, initialView }: Props) {
               <Popup><b>{b.name}</b><br />{b.province} — biên giới {b.country}<br />{b.dangerNote}</Popup>
             </Marker>
           </Fragment>
+        ))}
+        <Marker position={[SEA_LABEL.lat, SEA_LABEL.lng]} icon={seaLabelIcon} interactive={false} zIndexOffset={400} />
+        {LANDMARKS.map((g) => (
+          <Marker key={g.id} position={[g.lat, g.lng]} icon={landmarkIcon(g.name)} zIndexOffset={800}>
+            <Popup><b>{g.name}</b><br />Địa danh nổi tiếng của Việt Nam.</Popup>
+          </Marker>
         ))}
         {ISLAND_GROUPS.map((g) => (
           <Marker key={g.id} position={[g.lat, g.lng]} icon={islandIcon(g.short, g.en)} zIndexOffset={1000}>

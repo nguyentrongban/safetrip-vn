@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Map as MapboxMap, Marker as MapboxMarker } from 'mapbox-gl';
+import type { GeoJSONSource, Map as MapboxMap, Marker as MapboxMarker } from 'mapbox-gl';
 import { BORDER_LINES, BORDER_POINTS, BORDER_RADIUS_KM } from '../utils/data';
+import type { PlacePoint } from '../types';
 import {
   MAPBOX_SATELLITE_STYLE,
   MAPBOX_STREET_STYLE,
+  addLandmarkMarkers,
   addSovereigntyMarkers,
   applyBrandPaint,
   circlePolygon,
@@ -17,6 +19,42 @@ interface Props {
   lat: number | null;
   lng: number | null;
   onFail: (reason: string, view?: SavedView | null) => void;
+  /** Predicted-route polyline ([lat, lng] pairs) to draw, if any. */
+  route?: [number, number][] | null;
+  /** Destination point to flag, if picked. */
+  dest?: PlacePoint | null;
+}
+
+const DEST_HTML = '<div style="width:30px;height:30px;border-radius:50%;background:#fff;border:2.5px solid #10B981;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 8px rgba(15,23,42,.35)">🏁</div>';
+
+/** Predicted-route line (white casing + sky core). Idempotent; the
+ * source data is swapped in place when the route changes. */
+function upsertRouteLayer(map: MapboxMap, route: [number, number][] | null): void {
+  const data = {
+    type: 'Feature' as const,
+    properties: {},
+    geometry: {
+      type: 'LineString' as const,
+      coordinates: (route ?? []).map(([la, ln]) => [ln, la] as [number, number]),
+    },
+  };
+  const src = map.getSource('safetrip-route') as GeoJSONSource | undefined;
+  if (src) {
+    src.setData(data);
+    return;
+  }
+  map.addSource('safetrip-route', { type: 'geojson', data });
+  const before = map.getLayer('safetrip-islands-flag') ? 'safetrip-islands-flag' : undefined;
+  map.addLayer({
+    id: 'safetrip-route-casing', type: 'line', source: 'safetrip-route',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#FFFFFF', 'line-width': 8, 'line-opacity': 0.8 },
+  }, before);
+  map.addLayer({
+    id: 'safetrip-route-core', type: 'line', source: 'safetrip-route',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#0EA5E9', 'line-width': 4.5, 'line-opacity': 0.95 },
+  }, before);
 }
 
 const VN_CENTER: [number, number] = [108.2772, 14.0583]; // [lng, lat]
@@ -81,6 +119,7 @@ function addCustomLayers(map: MapboxMap, gl: MapboxGL): void {
     map.on('mouseleave', 'safetrip-border-core', () => { map.getCanvas().style.cursor = ''; });
   }
   addSovereigntyMarkers(map);
+  addLandmarkMarkers(map);
 }
 
 function addGateMarkers(map: MapboxMap, gl: MapboxGL): void {
@@ -101,11 +140,16 @@ function addGateMarkers(map: MapboxMap, gl: MapboxGL): void {
  * Any engine failure is reported through onFail — the wrapper then swaps in
  * the Leaflet map at the same view, silently.
  */
-export default function MapboxMapView({ lat, lng, onFail }: Props) {
+export default function MapboxMapView({ lat, lng, onFail, route = null, dest = null }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const glRef = useRef<MapboxGL | null>(null);
   const userMarkerRef = useRef<MapboxMarker | null>(null);
+  const destMarkerRef = useRef<MapboxMarker | null>(null);
+  const routeRef = useRef(route);
+  routeRef.current = route;
+  const destRef = useRef(dest);
+  destRef.current = dest;
   const bootIdRef = useRef(0);
   const failedRef = useRef(false);
   const loadedRef = useRef(false);
@@ -178,6 +222,8 @@ export default function MapboxMapView({ lat, lng, onFail }: Props) {
         applyBrandPaint(map, { satellite: modeRef.current === 'satellite' });
         addCustomLayers(map, gl);
         addGateMarkers(map, gl);
+        upsertRouteLayer(map, routeRef.current);
+        syncDestMarker();
         const { lat: pla, lng: pln } = posRef.current;
         if (pla !== null && pln !== null && !userMarkerRef.current) {
           const el = document.createElement('div');
@@ -196,6 +242,7 @@ export default function MapboxMapView({ lat, lng, onFail }: Props) {
         mapRef.current = null;
       }
       userMarkerRef.current = null;
+      destMarkerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -217,6 +264,34 @@ export default function MapboxMapView({ lat, lng, onFail }: Props) {
     map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 11), duration: 800 });
   }, [lat, lng]);
 
+  /* ---------------- route line + destination flag ---------------- */
+  const syncDestMarker = () => {
+    const map = mapRef.current;
+    const gl = glRef.current;
+    const d = destRef.current;
+    if (!map || !gl || failedRef.current || !loadedRef.current) return;
+    if (d) {
+      if (!destMarkerRef.current) {
+        const el = document.createElement('div');
+        el.innerHTML = DEST_HTML;
+        destMarkerRef.current = new gl.Marker({ element: el }).setLngLat([d.lng, d.lat]).addTo(map);
+      } else {
+        destMarkerRef.current.setLngLat([d.lng, d.lat]);
+      }
+    } else if (destMarkerRef.current) {
+      destMarkerRef.current.remove();
+      destMarkerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || failedRef.current || !loadedRef.current) return;
+    try { upsertRouteLayer(map, route); } catch { /* style mid-swap */ }
+    syncDestMarker();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, dest]);
+
   /* ---------------- street / satellite toggle ---------------- */
   const switchMode = (m: 'street' | 'satellite') => {
     if (m === mode) return;
@@ -229,6 +304,7 @@ export default function MapboxMapView({ lat, lng, onFail }: Props) {
       if (failedRef.current) return;
       applyBrandPaint(map, { satellite: m === 'satellite' });
       addCustomLayers(map, gl);
+      upsertRouteLayer(map, routeRef.current);
     });
   };
 
