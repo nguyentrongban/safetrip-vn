@@ -28,5 +28,5 @@
     "preview": "vite preview"
   },
   "type": "module",
-  "version": "1.25.0"
+  "version": "1.27.0"
 }
