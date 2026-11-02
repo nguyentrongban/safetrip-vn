@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { BORDER_LINES, BORDER_POINTS, BORDER_RADIUS_KM } from '../utils/data';
+import { BORDER_LINES, BORDER_POINTS, BORDER_RADIUS_KM, ISLAND_GROUPS } from '../utils/data';
 
 const userIcon = L.divIcon({
   className: '',
@@ -13,6 +13,22 @@ const borderIcon = L.divIcon({
   html: '<div style="font-size:20px;line-height:1">🚩</div>', iconSize: [20, 20], iconAnchor: [10, 10],
 });
 
+/** Sovereignty marker: a pinned Vietnam flag + bilingual name pill
+ * (Hoàng Sa / Paracel Islands · Vietnam). Always rendered, above tiles. */
+const islandIcon = (short: string, en: string) => L.divIcon({
+  className: '',
+  html: `<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+    <div style="width:38px;height:28px;border-radius:6px;background:#DA251D;border:2px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(15,23,42,.4)">
+      <svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 1.8l3.1 6.9 7.5.7-5.6 5 1.6 7.4L12 18l-6.6 3.8L7 14.4 1.4 9.4l7.5-.7z" fill="#FFDE00"/></svg>
+    </div>
+    <div style="background:rgba(255,255,255,.94);border:1.5px solid #F59E0B;border-radius:999px;padding:2px 9px;text-align:center;line-height:1.15;box-shadow:0 2px 8px rgba(15,23,42,.25)">
+      <div style="font-size:11.5px;font-weight:800;color:#9A3412;white-space:nowrap">${short}</div>
+      <div style="font-size:9px;font-weight:700;color:#475569;white-space:nowrap">${en} · Vietnam</div>
+    </div>
+  </div>`,
+  iconSize: [150, 66], iconAnchor: [75, 14],
+});
+
 /**
  * Tile providers — all verified by downloading real tiles and VIEWING them
  * (2026-10-31). Lessons: tile.openstreetmap.org returns HTTP 418
@@ -20,10 +36,14 @@ const borderIcon = L.divIcon({
  * basemaps now serves "API KEY REQUIRED" watermark placeholders (v1.1).
  * Esri WorldStreetMap is a real Google-style street map (roads + Vietnamese
  * labels) on the ArcGIS CDN: free, no key, no watermark.
+ * v1.27 (2026-11-02): OSM HOT promoted to PRIMARY street provider for the
+ * cuter look (warm cream land, soft blue water, tiles downloaded and VIEWED
+ * today — real map content, no watermark); Esri stays as the automatic
+ * fallback when HOT fails to deliver tiles.
  */
 const STREET_PROVIDERS = [
-  { name: 'Esri Street', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', subdomains: undefined as string | undefined, attribution: 'Tiles &copy; Esri, OpenStreetMap contributors' },
   { name: 'OSM HOT', url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', subdomains: 'abc', attribution: '&copy; OpenStreetMap contributors' },
+  { name: 'Esri Street', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', subdomains: undefined as string | undefined, attribution: 'Tiles &copy; Esri, OpenStreetMap contributors' },
 ];
 const SATELLITE_PROVIDERS = [
   { name: 'Esri Satellite', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains: undefined as string | undefined, attribution: 'Tiles &copy; Esri World Imagery' },
@@ -67,7 +87,7 @@ export default function LeafletMapView({ lat, lng, initialView }: Props) {
 
   return (
     <div className="relative rounded-3xl overflow-hidden border border-slate-700 h-[340px] md:h-[440px] lg:h-[560px]">
-      <style>{'@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,.5)}70%{box-shadow:0 0 0 14px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}} .leaflet-container{background:#0F172A}'}</style>
+      <style>{'@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,.5)}70%{box-shadow:0 0 0 14px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}} .leaflet-container{background:#EAF6FD}'}</style>
       <MapContainer center={center} zoom={initialView?.zoom ?? (lat ? 12 : 6)} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
         <TileLayer
           key={`${mode}-${providerIdx}`}
@@ -105,6 +125,11 @@ export default function LeafletMapView({ lat, lng, initialView }: Props) {
               <Popup><b>{b.name}</b><br />{b.province} — biên giới {b.country}<br />{b.dangerNote}</Popup>
             </Marker>
           </Fragment>
+        ))}
+        {ISLAND_GROUPS.map((g) => (
+          <Marker key={g.id} position={[g.lat, g.lng]} icon={islandIcon(g.short, g.en)} zIndexOffset={1000}>
+            <Popup><b>{g.name}</b> ({g.en})<br />Thuộc chủ quyền của Việt Nam — belongs to Vietnam.</Popup>
+          </Marker>
         ))}
       </MapContainer>
       <div className="absolute top-2 right-2 z-[500] flex rounded-xl overflow-hidden border border-slate-600 shadow-lg text-[11px] font-bold">

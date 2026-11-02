@@ -20,7 +20,7 @@ function Follow({ row }: { row: LiveRow | null }) {
 function LeafletLiveMap({ row, trail, initialView }: { row: LiveRow | null; trail: [number, number][]; initialView?: SavedView | null }) {
   return (
     <MapContainer center={initialView?.center ?? [14.0583, 108.2772]} zoom={initialView?.zoom ?? 6} style={{ height: '100%', width: '100%' }}>
-      <TileLayer attribution="Tiles &copy; Esri" url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}" />
+      <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png" subdomains="abc" />
       <Follow row={row} />
       {trail.length > 1 && <Polyline positions={trail} pathOptions={{ color: '#3B82F6', weight: 4, opacity: 0.8 }} />}
       {row && <CircleMarker center={[row.lat, row.lng]} radius={14} pathOptions={{ color: '#fff', weight: 3, fillColor: '#EF4444', fillOpacity: 1 }} />}
