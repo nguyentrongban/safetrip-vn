@@ -24,6 +24,10 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Web Push (v1.34): public/push-sw.js only ADDS the push +
+        // notificationclick listeners to this generated SW; precache and
+        // runtime caching below are untouched.
+        importScripts: ['/push-sw.js'],
         globPatterns: ['**/*.{js,css,html,svg,png,webp}'],
         // The Mapbox GL chunk is loaded on demand only when a token is
         // configured (v1.25) — never precache it for Leaflet-only users.
