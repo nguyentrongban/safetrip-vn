@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Flag, Play, ShieldCheck, Square, TriangleAlert } from 'lucide-react';
 import MapView from './MapView';
 import LivePanel from './LivePanel';
+import PushNotifyCard from './PushNotifyCard';
 import LiveUpdateBanner from './LiveUpdateBanner';
 import PlacePicker from './PlacePicker';
 import type { GeoState } from '../hooks/useGeolocation';
@@ -12,6 +13,8 @@ import { BORDER_LINES, BORDER_LINE_ALERT_KM, BORDER_POINTS, BORDER_RADIUS_KM } f
 import { distanceToBorderLine, formatKm, haversineKm, nearestBorder, remainingRoutePoints, routeProgress } from '../utils/geo';
 import { fetchRoute, type RouteResult } from '../utils/routing';
 import { loadTrip, saveTrip } from '../utils/storage';
+import { ensureLiveSession, loadLiveSessionCode } from '../utils/live';
+import { isPushConfigured, syncDmsDeadline } from '../utils/push';
 import type { PlacePoint, TripConfig } from '../types';
 
 interface Props {
@@ -103,6 +106,30 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
 
   const dms = useDeadMansSwitch(!!trip, onDeadManTimeout);
   const live = useLiveSmsUpdates(!!trip && !alarming, geo.lat, geo.lng);
+
+  /* Server-side DMS watch (v1.34, on Cloudflare since v1.36): report the
+   * check-in deadline to the push Worker, whose cron watcher Web-Pushes a
+   * −5 min warning even after the traveler closes the web app — the
+   * in-page countdown above dies with the page, the Worker's copy does
+   * not. Sync on every arm / check-in (deadlineMs changes), clear on a
+   * deliberate trip end, and re-assert every 60s so a sync lost to a dead
+   * zone heals itself (the Worker only resets its "warned" flag when the
+   * deadline truly moves, so re-asserting the same value can never cause
+   * a duplicate warning). No-op until PUSH_WORKER_URL is configured. */
+  const dmsDeadlineMs = dms.deadlineMs;
+  useEffect(() => {
+    if (!isPushConfigured()) return;
+    if (!trip) {
+      const code = loadLiveSessionCode();
+      if (code) void syncDmsDeadline(code, null);
+      return;
+    }
+    const code = ensureLiveSession();
+    const sync = () => { if (dmsDeadlineMs) void syncDmsDeadline(code, dmsDeadlineMs); };
+    sync();
+    const id = window.setInterval(sync, 60000);
+    return () => window.clearInterval(id);
+  }, [trip, dmsDeadlineMs]);
 
   /* ---------------- predicted route while setting up ---------------- */
   const gpsPoint: PlacePoint | null = geo.lat !== null && geo.lng !== null
@@ -355,6 +382,9 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
             {alarming && <p className="text-center text-red-400 text-sm font-bold animate-blink-red">ĐANG KÊU CÒI — sang tab SOS để tắt</p>}
           </section>
         )}
+        <div className="mt-4">
+          <PushNotifyCard />
+        </div>
         <div className="mt-4">
           <LivePanel onOpenLive={onOpenLive} />
         </div>
