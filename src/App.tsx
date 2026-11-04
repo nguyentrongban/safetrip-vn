@@ -151,7 +151,7 @@ export default function App() {
       <header className="sticky top-0 z-30 bg-[#07080A]/90 backdrop-blur border-b border-white/10 px-4 py-3">
         <div className={`${SHELL} flex items-center gap-3`}>
           <span className="shrink-0 rounded-[14px] bg-gradient-to-br from-sky-400 to-emerald-400 p-[2px]">
-            <img src="/logo.png" alt="SafeTrip VN" className="w-10 h-10 rounded-xl block" />
+            <img src="/logo-shield.png" alt="SafeTrip VN" className="h-10 w-10 object-contain block" />
           </span>
           <h1 className="flex-1 font-bold tracking-tight text-white text-lg leading-none">SafeTrip VN</h1>
           <button onClick={() => { if (!gpsOk) geo.requestOnce(); }} className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full border ${gpsOk ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-red-500/15 text-red-300 border-red-500/40'}`}>
