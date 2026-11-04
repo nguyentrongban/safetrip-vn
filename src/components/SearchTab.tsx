@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, CircleCheck, Search, ShieldAlert, Trash2, TriangleAlert, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Camera, ChevronDown, CircleCheck, Flag, Search, ShieldAlert, Trash2, TriangleAlert, X } from 'lucide-react';
 import { BLACKLIST_DATABASE, CHECKLIST_QUESTIONS, PROVINCES } from '../utils/data';
 import { normalizePhone, normalizePlate } from '../utils/geo';
 import { loadReports, saveReports } from '../utils/storage';
@@ -53,6 +54,7 @@ export default function SearchTab() {
   const [sending, setSending] = useState(false);
   const [sendNote, setSendNote] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, boolean>>({});
+  const [showForm, setShowForm] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Community search (approved reports only), debounced. Falls back silently
@@ -144,13 +146,22 @@ export default function SearchTab() {
   };
 
   const removeReport = (id: string) => { const next = reports.filter((r) => r.id !== id); setReports(next); saveReports(next); };
-  const inputCls = 'w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500';
+  const inputCls = 'w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500';
 
   return (
     <div className="space-y-5">
       <section className="space-y-3">
-        <h3 className="font-black text-white text-lg flex items-center gap-2"><Search className="w-5 h-5 text-sky-400" /> Xe này có lừa đảo không?</h3>
-        <input className={inputCls} placeholder="Gõ biển số xe, tên nhà xe hoặc số điện thoại" value={query} maxLength={40} onChange={(e) => setQuery(e.target.value)} />
+        <h3 className="font-black text-white text-xl tracking-tight">Tra cứu xe lừa đảo</h3>
+        <div className="relative">
+          <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            className="w-full bg-black/30 border border-white/10 rounded-full pl-12 pr-4 py-3.5 text-base text-white placeholder:text-slate-500 focus:outline-none focus:border-sky-400 transition-colors shadow-lg"
+            placeholder="Biển số, tên nhà xe, số điện thoại"
+            value={query}
+            maxLength={40}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
         {searching && <p className="text-xs text-slate-400">Đang tra trong kho cộng đồng…</p>}
         {communityDown && query.trim().length >= 3 && <p className="text-[11px] text-slate-500">Chưa kết nối được kho cộng đồng — kết quả dưới đây là danh sách có sẵn trong máy.</p>}
 
@@ -188,15 +199,15 @@ export default function SearchTab() {
         ))}
       </section>
 
-      <section className="bg-panel rounded-2xl p-4 border border-slate-700/60 space-y-3">
+      <section className="bg-panel rounded-2xl p-4 border border-white/10 space-y-3">
         <h3 className="font-black text-white text-lg">Bạn có đang gặp nguy hiểm?</h3>
         <p className="text-sm text-slate-400 -mt-1">Trả lời 5 câu. CÓ từ 2 câu trở lên = nguy hiểm.</p>
         {CHECKLIST_QUESTIONS.map((q, i) => (
-          <div key={q.id} className="bg-slate-900 rounded-xl p-3 border border-slate-700/60">
+          <div key={q.id} className="bg-black/30 rounded-xl p-3 border border-white/10">
             <p className="text-base text-white font-semibold">{i + 1}. {q.text}</p>
             <div className="flex gap-2 mt-2.5">
-              <button onClick={() => setAnswers({ ...answers, [q.id]: true })} className={`flex-1 py-3 rounded-xl text-base font-black ${answers[q.id] === true ? 'bg-red-500 text-white' : 'bg-slate-800 text-slate-300'}`}>CÓ ⚠️</button>
-              <button onClick={() => setAnswers({ ...answers, [q.id]: false })} className={`flex-1 py-3 rounded-xl text-base font-black ${answers[q.id] === false ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}`}>KHÔNG</button>
+              <motion.button whileTap={{ scale: 0.96 }} onClick={() => setAnswers({ ...answers, [q.id]: true })} className={`flex-1 py-3 rounded-full text-base font-black transition-colors ${answers[q.id] === true ? 'bg-red-500 text-white' : 'bg-white/10 text-slate-300'}`}>CÓ ⚠️</motion.button>
+              <motion.button whileTap={{ scale: 0.96 }} onClick={() => setAnswers({ ...answers, [q.id]: false })} className={`flex-1 py-3 rounded-full text-base font-black transition-colors ${answers[q.id] === false ? 'bg-emerald-600 text-white' : 'bg-white/10 text-slate-300'}`}>KHÔNG</motion.button>
             </div>
           </div>
         ))}
@@ -211,9 +222,18 @@ export default function SearchTab() {
         )}
       </section>
 
-      <section className="bg-panel rounded-2xl p-4 border border-slate-700/60 space-y-3">
-        <h3 className="font-bold text-white">Báo cáo xe dù / lừa đảo</h3>
-        <p className="text-xs text-slate-400 -mt-1">Báo cáo của bạn sẽ được gửi lên kho chung để cảnh báo mọi người — hiện lên sau khi được duyệt. Một bản sao luôn lưu trong máy bạn.</p>
+      <section className="bg-panel rounded-3xl p-4 border border-white/10">
+        <button onClick={() => setShowForm((v) => !v)} className="w-full flex items-center gap-2 text-left">
+          <Flag className="w-5 h-5 text-amber-400 shrink-0" />
+          <span className="flex-1 font-bold text-white">Báo cáo xe dù / lừa đảo</span>
+          {reports.length > 0 && <span className="text-[11px] bg-white/10 text-slate-300 px-2 py-0.5 rounded-full font-bold shrink-0">{reports.length} đã báo</span>}
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition shrink-0 ${showForm ? 'rotate-180' : ''}`} />
+        </button>
+        <AnimatePresence initial={false}>
+          {showForm && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.28 }} className="overflow-hidden">
+              <div className="space-y-3 pt-3">
+                <p className="text-xs text-slate-400">Sẽ hiện cho mọi người tra cứu sau khi được duyệt.</p>
         <input className={inputCls} placeholder="Biển số xe *" value={plate} maxLength={15} onChange={(e) => setPlate(e.target.value)} />
         {plate.trim() && !plateValid && <p className="text-xs text-red-400 font-semibold -mt-1">Biển số chưa đúng định dạng (ví dụ: 51B-123.45).</p>}
         <input className={inputCls} placeholder="Tên nhà xe (không biết thì bỏ trống)" value={company} maxLength={120} onChange={(e) => setCompany(e.target.value)} />
@@ -252,27 +272,31 @@ export default function SearchTab() {
           <p className="text-[10px] text-slate-500">{desc.length}/200</p>
         </div>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { void onImages(e.target.files); e.target.value = ''; }} />
-        <button onClick={() => fileRef.current?.click()} disabled={photoBusy} className="w-full bg-slate-800 border border-dashed border-slate-600 text-slate-200 py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm disabled:opacity-40"><Camera className="w-4 h-4" /> {photoBusy ? 'Đang nén ảnh…' : photos.length > 0 ? 'Đã chọn 1 ảnh — bấm để đổi tấm khác' : 'Thêm ảnh bằng chứng (1 tấm, tối đa 10MB, app tự nén nhỏ)'}</button>
+        <button onClick={() => fileRef.current?.click()} disabled={photoBusy} className="w-full bg-white/10 border border-dashed border-slate-600 text-slate-200 py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm disabled:opacity-40"><Camera className="w-4 h-4" /> {photoBusy ? 'Đang nén ảnh…' : photos.length > 0 ? 'Đã chọn 1 ảnh — bấm để đổi tấm khác' : 'Thêm ảnh bằng chứng (1 tấm, tối đa 10MB, app tự nén nhỏ)'}</button>
         {photoError && <p className="text-xs text-red-400 font-semibold">{photoError}</p>}
         {photos.length > 0 && (
           <div className="flex gap-2">
             {photos.map((p) => (
               <div key={p.id} className="relative">
-                <img src={p.preview} alt="Ảnh bằng chứng" className="w-20 h-20 rounded-lg object-cover border border-slate-700" />
+                <img src={p.preview} alt="Ảnh bằng chứng" className="w-20 h-20 rounded-lg object-cover border border-white/10" />
                 <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] px-1 rounded">{p.kb}KB</span>
                 <button onClick={() => removePhoto(p.id)} className="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full p-0.5" aria-label="Bỏ ảnh này"><X className="w-3 h-3" /></button>
               </div>
             ))}
           </div>
         )}
-        {!formValid && <p className="text-[11px] text-slate-500 -mb-1">Điền đủ các ô bắt buộc (biển số, SĐT, khu vực, mô tả) mới gửi được. Tên nhà xe không biết thì bỏ trống — sẽ hiện "Chưa xác định".</p>}
-        <button onClick={() => void submitReport()} disabled={!formValid || sending} className="w-full bg-warning text-slate-900 font-black py-2.5 rounded-xl disabled:opacity-40">{sending ? 'ĐANG GỬI…' : 'GỬI BÁO CÁO CHO CỘNG ĐỒNG'}</button>
+        {!formValid && <p className="text-[11px] text-slate-500 -mb-1">Điền đủ các ô * mới gửi được.</p>}
+        <button onClick={() => void submitReport()} disabled={!formValid || sending} className="w-full bg-warning text-slate-900 font-black py-3 rounded-full disabled:opacity-40 active:scale-[0.98] transition">{sending ? 'ĐANG GỬI…' : 'GỬI BÁO CÁO'}</button>
         {sendNote && <p className="text-sm text-emerald-300 font-semibold bg-emerald-500/10 border border-emerald-500/40 rounded-xl p-3">{sendNote}</p>}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {reports.length > 0 && (
           <div className="space-y-2 pt-1">
             <p className="text-xs text-slate-400 font-bold">Danh sách đen cá nhân của bạn ({reports.length})</p>
             {reports.map((r) => (
-              <div key={r.id} className="bg-slate-900 border border-slate-700 rounded-xl p-3 flex gap-3">
+              <div key={r.id} className="bg-black/30 border border-white/10 rounded-xl p-3 flex gap-3">
                 {r.imageDataUrl && <img src={r.imageDataUrl} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />}
                 <div className="min-w-0 flex-1">
                   <p className="text-white font-bold text-sm">{r.plate} — {r.company}</p>

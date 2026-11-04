@@ -12,7 +12,7 @@ interface Props {
   zones: CommuneZone[];
 }
 
-const inputCls = 'w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none focus:border-sky-500 disabled:opacity-50';
+const inputCls = 'w-full bg-white/10 border border-slate-600 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none focus:border-sky-500 disabled:opacity-50';
 
 /**
  * "Khu vực nguy hiểm" card (v1.42 — commune edition) — legend for the
@@ -102,7 +102,7 @@ export default function DangerZoneCard({ lat, lng, zones }: Props) {
   };
 
   return (
-    <section className="bg-panel rounded-3xl p-4 border border-slate-700/60 space-y-3">
+    <section className="bg-panel rounded-3xl p-4 border border-white/10 space-y-3">
       <h3 className="font-black text-white text-lg flex items-center gap-2">
         <TriangleAlert className="w-5 h-5 text-amber-400" /> Khu vực nguy hiểm
         {zones.length > 0 && (
@@ -118,27 +118,26 @@ export default function DangerZoneCard({ lat, lng, zones }: Props) {
           </span>
         ))}
       </div>
-      <p className="text-[11px] text-slate-500 -mt-1">Cả xã/phường có báo nguy hiểm sẽ được tô màu theo đúng ranh giới của xã đó. Chỉ hiện báo cáo đã được duyệt.</p>
 
       {done && (
         <p className="text-sm text-emerald-300 font-bold bg-emerald-500/10 border border-emerald-500/40 rounded-2xl px-3 py-2.5">
-          ✅ Đã gửi báo cáo — sau khi được duyệt, cả xã/phường này sẽ được tô màu cảnh báo.
+          ✅ Đã gửi — duyệt xong sẽ tô màu xã/phường này.
         </p>
       )}
 
       {!open ? (
         <button
           onClick={() => { setOpen(true); setDone(false); }}
-          className="w-full bg-slate-800 border border-slate-600 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition"
+          className="w-full bg-white/10 border border-slate-600 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition"
         >
           <MapPinPlus className="w-5 h-5 text-amber-400" /> Báo một khu vực nguy hiểm
         </button>
       ) : (
-        <div className="space-y-3 bg-slate-900 border border-slate-700 rounded-2xl p-3.5">
+        <div className="space-y-3 bg-black/30 border border-white/10 rounded-2xl p-3.5">
           <button
             onClick={() => void useCurrentCommune()}
             disabled={lat === null || lng === null || locating || provinces.length === 0}
-            className="w-full bg-sky-600/90 disabled:bg-slate-700 disabled:text-slate-400 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition text-sm"
+            className="w-full bg-sky-600/90 disabled:bg-white/15 disabled:text-slate-400 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition text-sm"
           >
             <LocateFixed className="w-4 h-4" />
             {locating ? 'Đang xác định…' : lat === null ? 'Chưa có định vị để tự điền' : 'Dùng xã/phường nơi bạn đang đứng'}
@@ -206,13 +205,13 @@ export default function DangerZoneCard({ lat, lng, zones }: Props) {
             <button
               onClick={() => void submit()}
               disabled={!canSubmit}
-              className="flex-1 bg-amber-500 disabled:bg-slate-700 disabled:text-slate-400 text-white font-black py-3 rounded-2xl active:scale-[0.98] transition"
+              className="flex-1 bg-amber-500 disabled:bg-white/15 disabled:text-slate-400 text-white font-black py-3 rounded-2xl active:scale-[0.98] transition"
             >
               {busy ? 'Đang gửi…' : 'Gửi báo cáo'}
             </button>
             <button
               onClick={() => setOpen(false)}
-              className="px-4 bg-slate-800 border border-slate-600 text-slate-300 font-bold rounded-2xl"
+              className="px-4 bg-white/10 border border-slate-600 text-slate-300 font-bold rounded-2xl"
             >
               Đóng
             </button>

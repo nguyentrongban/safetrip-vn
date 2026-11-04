@@ -340,11 +340,11 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
         <MapView lat={geo.lat} lng={geo.lng} route={mapRoute ?? null} dest={mapDest} followUser={followUser} zones={zones} />
         {nearest && nearestLine && (
           <div className={`grid grid-cols-2 gap-2 ${nearBorder ? '' : ''}`}>
-            <div className={`rounded-3xl p-3.5 border text-center ${nearLine ? 'bg-red-500/15 border-red-500' : 'bg-panel border-slate-700/60'}`}>
+            <div className={`rounded-3xl p-3.5 border text-center ${nearLine ? 'bg-red-500/15 border-red-500' : 'bg-panel border-white/10'}`}>
               <p className="text-xs text-slate-400 font-bold">🚩 TỚI BIÊN GIỚI</p>
               <p className={`text-2xl font-black ${nearLine ? 'text-red-400' : 'text-white'}`}>{formatKm(nearestLine.distanceKm)}</p>
             </div>
-            <div className={`rounded-3xl p-3.5 border text-center ${nearGate ? 'bg-red-500/15 border-red-500' : 'bg-panel border-slate-700/60'}`}>
+            <div className={`rounded-3xl p-3.5 border text-center ${nearGate ? 'bg-red-500/15 border-red-500' : 'bg-panel border-white/10'}`}>
               <p className="text-xs text-slate-400 font-bold">🏁 TỚI CỬA KHẨU GẦN NHẤT</p>
               <p className={`text-2xl font-black ${nearGate ? 'text-red-400' : 'text-white'}`}>{formatKm(nearest.distanceKm)}</p>
               <p className="text-[11px] text-slate-400 truncate">{nearest.border.name}</p>
@@ -352,28 +352,28 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
           </div>
         )}
         {nearBorder && (
-          <div className="bg-red-600 text-white rounded-3xl p-3.5 font-black text-center text-base">
+          <motion.div initial={{ opacity: 0, scale: 0.95, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 380, damping: 24 }} className="bg-red-600 text-white rounded-3xl p-3.5 font-black text-center text-base">
             <TriangleAlert className="inline w-5 h-5 mr-1 -mt-1" />
             {nearLine ? 'QUÁ GẦN BIÊN GIỚI — HÃY CẢNH GIÁC!' : 'ĐANG Ở GẦN CỬA KHẨU BIÊN GIỚI!'}
-          </div>
+          </motion.div>
         )}
         {devAlarm && (
-          <div className="bg-red-600 text-white rounded-3xl p-3.5 font-black text-center text-base animate-pulse">
+          <motion.div initial={{ opacity: 0, scale: 0.95, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 380, damping: 24 }} className="bg-red-600 text-white rounded-3xl p-3.5 font-black text-center text-base animate-pulse">
             <TriangleAlert className="inline w-5 h-5 mr-1 -mt-1" />
             {devAlarm.kind === 'wrong'
               ? 'ĐANG ĐI NGƯỢC HƯỚNG ĐÍCH — NGÀY CÀNG XA NƠI CẦN ĐẾN!'
               : `ĐANG ĐI CHỆCH TUYẾN ĐƯỜNG DỰ ĐOÁN ${formatKm(devAlarm.offKm)}!`}
-          </div>
+          </motion.div>
         )}
         {insideZone && zoneHit && (
-          <div className="bg-red-600 text-white rounded-3xl p-3.5 font-black text-center text-base animate-pulse">
+          <motion.div initial={{ opacity: 0, scale: 0.95, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 380, damping: 24 }} className="bg-red-600 text-white rounded-3xl p-3.5 font-black text-center text-base animate-pulse">
             <TriangleAlert className="inline w-5 h-5 mr-1 -mt-1" />
             BẠN ĐANG Ở {zoneHit.wardName.toUpperCase()} — KHU VỰC CÓ BÁO NGUY HIỂM: {ZONE_TYPE_META[zoneHit.topType].label.toUpperCase()}!
             <span className="block text-sm font-bold mt-0.5">{(zoneHit.reports.find((r) => r.type === zoneHit.topType) ?? zoneHit.reports[0]).description}</span>
             {zoneHit.reports.length > 1 && (
               <span className="block text-xs font-bold mt-0.5">+{zoneHit.reports.length - 1} báo cáo khác — chạm vào vùng tô màu trên bản đồ để xem hết</span>
             )}
-          </div>
+          </motion.div>
         )}
         {rerouteNote && !devAlarm && (
           <div className="bg-sky-600/90 text-white rounded-3xl p-3 font-bold text-center text-sm">
@@ -384,39 +384,33 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
 
       <div>
         {!trip ? (
-          <section className="bg-panel rounded-3xl p-4 border border-slate-700/60 space-y-4">
+          <section className="bg-panel rounded-3xl p-4 border border-white/10 space-y-3">
             <PlacePicker
-              label="📍 Điểm bắt đầu"
+              variant="start"
+              label="Điểm bắt đầu"
               value={startPick}
               onChange={setStartPick}
               allowCurrent
               currentPos={geo.lat !== null && geo.lng !== null ? { lat: geo.lat, lng: geo.lng } : null}
             />
-            {!startPick && (
-              <p className="text-[11px] text-slate-500 -mt-2">Không chọn gì thì app lấy vị trí hiện tại của bạn làm điểm bắt đầu.</p>
-            )}
-            <PlacePicker label="🏁 Bạn đi đâu?" value={destPick} onChange={setDestPick} />
+            <div className="ml-[26px] border-l-2 border-dotted border-white/10 h-2.5" />
+            <PlacePicker variant="dest" label="Bạn đi đâu?" value={destPick} onChange={setDestPick} />
 
             {destPick && (
-              <div className="bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-center">
+              <div className="bg-black/30 border border-white/10 rounded-2xl px-4 py-2.5 text-center">
                 {routeBusy ? (
-                  <p className="text-sm text-slate-300 font-bold">⏳ Đang tính đường đi…</p>
+                  <p className="text-sm text-slate-300 font-bold">⏳ Đang tính đường…</p>
                 ) : routeInfo ? (
-                  <>
-                    <p className="text-base font-black text-white">🛣 {formatKm(routeInfo.distanceKm)} · đi khoảng {fmtDuration(routeInfo.durationMin)}</p>
-                    <p className="text-sm text-emerald-300 font-bold mt-0.5">Đến nơi khoảng {fmtClock(Date.now() + routeInfo.durationMin * 60000)}</p>
-                  </>
+                  <p className="text-sm font-black text-white">🛣 {formatKm(routeInfo.distanceKm)} · {fmtDuration(routeInfo.durationMin)} · đến nơi <span className="text-emerald-300">{fmtClock(Date.now() + routeInfo.durationMin * 60000)}</span></p>
                 ) : (
-                  <p className="text-xs text-amber-300 font-bold">Chưa tính được đường đi (mạng yếu?). Vẫn bắt đầu được — app canh biên giới như cũ, chỉ thiếu cảnh báo lệch tuyến.</p>
+                  <p className="text-xs text-amber-300 font-bold">Chưa tính được đường (mạng yếu?) — vẫn bắt đầu được, app vẫn canh biên giới.</p>
                 )}
               </div>
             )}
-            {!destPick && <p className="text-xs text-slate-400 text-center">Chọn điểm đến chi tiết ở trên — app tự tính đường đi và giờ đến nơi, khỏi nhập tay.</p>}
 
-            <button onClick={start} disabled={!destPick} className="w-full bg-success hover:bg-emerald-600 disabled:bg-slate-700 disabled:text-slate-400 text-white text-lg font-black py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition">
+            <button onClick={start} disabled={!destPick} className="w-full bg-white hover:bg-slate-200 disabled:bg-white/10 disabled:text-slate-500 text-slate-900 text-lg font-black py-4 rounded-full flex items-center justify-center gap-2 active:scale-[0.98] transition">
               <Play className="w-6 h-6" /> BẮT ĐẦU ĐI
             </button>
-            <p className="text-xs text-slate-400 text-center">App tự canh: gần biên giới là báo ngay, đi chệch tuyến xa là báo.</p>
           </section>
         ) : (
           <section className="bg-panel rounded-3xl p-4 border border-emerald-500/40 space-y-3">
@@ -426,7 +420,7 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
             </div>
 
             {trip.route && (
-              <div className="bg-slate-900 border border-slate-700 rounded-2xl px-4 py-2.5 text-center">
+              <div className="bg-black/30 border border-white/10 rounded-2xl px-4 py-2.5 text-center">
                 <p className="text-sm font-bold text-slate-200">
                   {liveRemainingKm !== null ? <>Còn khoảng <b className="text-white">{formatKm(liveRemainingKm)}</b> theo tuyến</> : 'Đang theo tuyến đường dự đoán'}
                   {plannedEta && <> · đến nơi khoảng <b className="text-emerald-300">{fmtClock(plannedEta)}</b></>}
@@ -434,16 +428,16 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
               </div>
             )}
 
-            <div className={`rounded-3xl p-4 text-center border ${dms.inGrace ? 'bg-red-500/15 border-red-500' : 'bg-slate-900 border-slate-700'}`}>
-              <p className="text-sm font-bold text-slate-300">{dms.inGrace ? '⚠️ BẤM NGAY NÚT XANH Ở DƯỚI!' : 'Còn từng này phải điểm danh:'}</p>
+            <div className={`rounded-3xl p-4 text-center border ${dms.inGrace ? 'bg-red-500/15 border-red-500' : 'bg-black/30 border-white/10'}`}>
+              <p className="text-sm font-bold text-slate-300">{dms.inGrace ? '⚠️ BẤM NGAY NÚT XANH Ở DƯỚI!' : 'Điểm danh sau:'}</p>
               <p className={`text-4xl font-black tabular-nums my-1 ${dms.inGrace ? 'text-red-400' : 'text-white'}`}>{formatCountdown(dms.inGrace ? dms.graceLeft : dms.secondsLeft)}</p>
               {dms.inGrace && <p className="text-xs text-red-300 font-bold">Không bấm = còi kêu to + mở sẵn tin SOS</p>}
-              <motion.button whileTap={{ scale: 0.97 }} onClick={dms.checkIn} className="mt-2 w-full bg-success text-white text-lg font-black py-3.5 rounded-2xl flex items-center justify-center gap-2">
+              <motion.button whileTap={{ scale: 0.97 }} onClick={dms.checkIn} className="mt-2 w-full bg-success text-white text-lg font-black py-3.5 rounded-full flex items-center justify-center gap-2">
                 <ShieldCheck className="w-6 h-6" /> TÔI AN TOÀN
               </motion.button>
             </div>
 
-            <button onClick={stop} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2">
+            <button onClick={stop} className="w-full bg-white/15 hover:bg-slate-600 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2">
               <Square className="w-4 h-4" /> Đã tới nơi — tắt canh
             </button>
             {alarming && <p className="text-center text-red-400 text-sm font-bold animate-blink-red">ĐANG KÊU CÒI — sang tab SOS để tắt</p>}

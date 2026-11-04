@@ -43,20 +43,20 @@ export default function LivePanel({ onOpenLive }: Props) {
     try { await navigator.clipboard.writeText(liveLink(myCode, cfg)); setCopied(true); window.setTimeout(() => setCopied(false), 2000); } catch { /* clipboard blocked */ }
   };
 
-  const inputCls = 'w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500';
+  const inputCls = 'w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500';
 
   return (
-    <section className="bg-panel rounded-3xl p-4 border border-slate-700/60 space-y-3">
+    <section className="bg-panel rounded-3xl p-4 border border-white/10 space-y-3">
       <h3 className="font-black text-white text-lg flex items-center gap-2"><Radio className="w-5 h-5 text-sky-400" /> Theo dõi trực tiếp</h3>
 
       {cfg ? (
         <>
-          <div className="bg-slate-900 rounded-2xl p-3.5 border border-slate-700 text-center">
+          <div className="bg-black/30 rounded-2xl p-3.5 border border-white/10 text-center">
             <p className="text-xs text-slate-400 font-bold">MÃ TRỰC TIẾP CỦA BẠN</p>
             <p className="text-3xl font-black tracking-[0.3em] text-white">{myCode || '--------'}</p>
-            <p className="text-xs text-slate-400 mt-1">Đã bật sẵn — bạn không cần cài đặt gì.<br />Khi bạn bắt đầu đi hoặc bấm SOS, người nhà mở link trong tin nhắn là thấy bạn di chuyển trên bản đồ.</p>
+            <p className="text-xs text-slate-400 mt-1">Gửi link này cho người nhà là họ thấy bạn trên bản đồ.</p>
           </div>
-          <button onClick={copyLink} className="w-full bg-slate-800 border border-slate-600 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2">
+          <button onClick={copyLink} className="w-full bg-white/10 border border-slate-600 text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2">
             <Copy className="w-4 h-4" /> {copied ? 'ĐÃ CHÉP LINK ✓' : 'Chép link xem trực tiếp'}
           </button>
         </>
@@ -68,7 +68,7 @@ export default function LivePanel({ onOpenLive }: Props) {
         <input className={inputCls} placeholder="Nhập mã của người thân" value={watchCode} onChange={(e) => setWatchCode(e.target.value.toUpperCase())} maxLength={10} />
         <button onClick={() => { if (watchCode.trim().length >= 6) onOpenLive(watchCode.trim()); }} className="shrink-0 bg-success text-white font-black px-4 rounded-2xl flex items-center gap-1.5"><Eye className="w-4 h-4" /> XEM</button>
       </div>
-      <p className="text-[11px] text-slate-500 flex items-center gap-1"><Link2 className="w-3 h-3" /> Hết mạng thì app tự chuyển sang nhắc gửi SMS mỗi 1km như cũ.</p>
+      <p className="text-[11px] text-slate-500 flex items-center gap-1"><Link2 className="w-3 h-3" /> Mất mạng: app tự nhắc gửi SMS vị trí.</p>
 
       <details className="group">
         <summary className="text-xs text-slate-500 font-bold cursor-pointer flex items-center gap-1 list-none">Nâng cao: dùng trạm riêng của bạn <ChevronDown className="w-3.5 h-3.5 group-open:rotate-180 transition" /></summary>
@@ -76,7 +76,7 @@ export default function LivePanel({ onOpenLive }: Props) {
           {own ? (
             <>
               <p className="text-xs text-emerald-300 font-semibold">Đang dùng trạm riêng của bạn (ưu tiên hơn trạm chung).</p>
-              <button onClick={removeOwn} className="w-full bg-slate-800 border border-slate-600 text-white font-bold py-2.5 rounded-2xl flex items-center justify-center gap-2 text-sm"><Trash2 className="w-4 h-4" /> Bỏ trạm riêng, về trạm chung</button>
+              <button onClick={removeOwn} className="w-full bg-white/10 border border-slate-600 text-white font-bold py-2.5 rounded-2xl flex items-center justify-center gap-2 text-sm"><Trash2 className="w-4 h-4" /> Bỏ trạm riêng, về trạm chung</button>
             </>
           ) : (
             <>

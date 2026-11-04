@@ -178,7 +178,7 @@ export default function LeafletMapView({ lat, lng, initialView, route, dest, fol
   }, [providerIdx, mode]);
 
   return (
-    <div className="relative rounded-3xl overflow-hidden border border-slate-700 h-[340px] md:h-[440px] lg:h-[560px]">
+    <div className="relative rounded-3xl overflow-hidden border border-white/10 h-[340px] md:h-[440px] lg:h-[560px]">
       <style>{'@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,.5)}70%{box-shadow:0 0 0 14px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}} .leaflet-container{background:#EAF6FD}'}</style>
       <MapContainer center={center} zoom={initialView?.zoom ?? (lat ? 12 : 6)} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
         <TileLayer
@@ -271,20 +271,20 @@ export default function LeafletMapView({ lat, lng, initialView, route, dest, fol
         ))}
       </MapContainer>
       <div className="absolute top-2 right-2 z-[500] flex rounded-xl overflow-hidden border border-slate-600 shadow-lg text-[11px] font-bold">
-        <button onClick={() => switchMode('street')} className={`px-2.5 py-1.5 ${mode === 'street' ? 'bg-blue-600 text-white' : 'bg-slate-900/90 text-slate-300'}`}>🗺️ Đường</button>
-        <button onClick={() => switchMode('satellite')} className={`px-2.5 py-1.5 ${mode === 'satellite' ? 'bg-blue-600 text-white' : 'bg-slate-900/90 text-slate-300'}`}>🛰️ Vệ tinh</button>
+        <button onClick={() => switchMode('street')} className={`px-2.5 py-1.5 ${mode === 'street' ? 'bg-blue-600 text-white' : 'bg-black/30/90 text-slate-300'}`}>🗺️ Đường</button>
+        <button onClick={() => switchMode('satellite')} className={`px-2.5 py-1.5 ${mode === 'satellite' ? 'bg-blue-600 text-white' : 'bg-black/30/90 text-slate-300'}`}>🛰️ Vệ tinh</button>
       </div>
       {route && route.length > 1 && (
         <button
           onClick={() => { if (mapInst) mapInst.fitBounds(L.latLngBounds(route.map(([la, ln]) => [la, ln] as [number, number])), { padding: [36, 36], maxZoom: 15, animate: true }); }}
-          className="absolute top-11 right-2 z-[500] px-2.5 py-1.5 rounded-xl border border-slate-600 shadow-lg text-[11px] font-bold bg-slate-900/90 text-slate-200"
+          className="absolute top-11 right-2 z-[500] px-2.5 py-1.5 rounded-xl border border-slate-600 shadow-lg text-[11px] font-bold bg-black/30/90 text-slate-200"
         >
           🛣 Toàn tuyến
         </button>
       )}
       {tilesLoaded === 0 && (
         <div className="absolute inset-x-0 bottom-0 z-[500] pointer-events-none">
-          <p className={`text-center text-[11px] font-bold py-1.5 ${showNoTilesHint ? 'bg-red-600/90 text-white' : 'bg-slate-900/85 text-slate-300'}`}>
+          <p className={`text-center text-[11px] font-bold py-1.5 ${showNoTilesHint ? 'bg-red-600/90 text-white' : 'bg-black/30/85 text-slate-300'}`}>
             {showNoTilesHint ? `Không tải được nền bản đồ từ ${provider.name} — đang thử nguồn khác / kiểm tra kết nối mạng. Cờ đỏ và đường biên vẫn đúng vị trí.` : 'Đang tải nền bản đồ...'}
           </p>
         </div>

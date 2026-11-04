@@ -414,17 +414,17 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
   };
 
   return (
-    <div className="relative rounded-3xl overflow-hidden border border-slate-700 h-[340px] md:h-[440px] lg:h-[560px]">
+    <div className="relative rounded-3xl overflow-hidden border border-white/10 h-[340px] md:h-[440px] lg:h-[560px]">
       <style>{'@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,.5)}70%{box-shadow:0 0 0 14px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}} .mapboxgl-map{font-family:inherit} .mapboxgl-popup-content{background:#1E293B;color:#F1F5F9;border-radius:12px;font-size:13px} .mapboxgl-popup-tip{border-top-color:#1E293B!important;border-bottom-color:#1E293B!important}'}</style>
       <div ref={containerRef} className="w-full h-full" style={{ background: '#EAF6FD' }} />
       <div className="absolute top-2 right-2 z-[500] flex rounded-xl overflow-hidden border border-slate-600 shadow-lg text-[11px] font-bold">
-        <button onClick={() => switchMode('street')} className={`px-2.5 py-1.5 ${mode === 'street' ? 'bg-blue-600 text-white' : 'bg-slate-900/90 text-slate-300'}`}>🗺️ Đường</button>
-        <button onClick={() => switchMode('satellite')} className={`px-2.5 py-1.5 ${mode === 'satellite' ? 'bg-blue-600 text-white' : 'bg-slate-900/90 text-slate-300'}`}>🛰️ Vệ tinh</button>
+        <button onClick={() => switchMode('street')} className={`px-2.5 py-1.5 ${mode === 'street' ? 'bg-blue-600 text-white' : 'bg-black/30/90 text-slate-300'}`}>🗺️ Đường</button>
+        <button onClick={() => switchMode('satellite')} className={`px-2.5 py-1.5 ${mode === 'satellite' ? 'bg-blue-600 text-white' : 'bg-black/30/90 text-slate-300'}`}>🛰️ Vệ tinh</button>
       </div>
       {route && route.length > 1 && (
         <button
           onClick={() => fitToRoute(route)}
-          className="absolute top-11 right-2 z-[500] px-2.5 py-1.5 rounded-xl border border-slate-600 shadow-lg text-[11px] font-bold bg-slate-900/90 text-slate-200"
+          className="absolute top-11 right-2 z-[500] px-2.5 py-1.5 rounded-xl border border-slate-600 shadow-lg text-[11px] font-bold bg-black/30/90 text-slate-200"
         >
           🛣 Toàn tuyến
         </button>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Loader2, LocateFixed, MapPin, Search, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Loader2, LocateFixed, MapPin, Search, X } from 'lucide-react';
 import type { PlacePoint } from '../types';
 import { fetchProvinces, fetchWards, type VnProvince, type VnWard } from '../utils/vnAdmin';
 
@@ -123,12 +123,16 @@ interface Props {
   /** Show the "use my current position" shortcut (start point). */
   allowCurrent?: boolean;
   currentPos?: { lat: number; lng: number } | null;
+  /** Grab-style row marker: sky ring for the start, red pin for the
+   *  destination (v1.48 compact rows). */
+  variant?: 'start' | 'dest';
 }
 
 type Mode = 'search' | 'ward';
 
-export default function PlacePicker({ label, value, onChange, allowCurrent = false, currentPos = null }: Props) {
+export default function PlacePicker({ label, value, onChange, allowCurrent = false, currentPos = null, variant = 'dest' }: Props) {
   const [mode, setMode] = useState<Mode>('search');
+  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<NominatimHit[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -178,6 +182,7 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
     setWardBusy(false);
     if (point) {
       onChange({ lat: point.lat, lng: point.lng, name: `${wardName}, ${prov.name}` });
+      setOpen(false);
     } else {
       setWardNote('Máy chủ tìm kiếm đang bận hoặc mạng yếu — đợi vài giây rồi chọn lại phường xã, hoặc dùng ô Tìm kiếm.');
     }
@@ -187,33 +192,59 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
     <button
       type="button"
       onClick={() => setMode(m)}
-      className={`px-3 py-1.5 rounded-full text-xs font-bold ${mode === m ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}
+      className={`px-3 py-1.5 rounded-full text-xs font-bold ${mode === m ? 'bg-blue-600 text-white' : 'bg-white/10 text-slate-300 border border-white/10'}`}
     >
       {text}
     </button>
   );
 
-  return (
-    <div className="space-y-2">
-      <p className="text-sm font-bold text-slate-300">{label}</p>
+  const choose = (p: PlacePoint) => { onChange(p); setOpen(false); };
+  const dot = variant === 'start'
+    ? <span className="w-3.5 h-3.5 rounded-full border-[3px] border-sky-400 shrink-0 mx-0.5" />
+    : <MapPin className="w-5 h-5 text-red-400 shrink-0" />;
 
+  /* v1.48 — Grab-style compact rows (tấn's order): collapsed to a single
+   * row (chosen place / current position / tappable label); the search +
+   * ward editor only opens on tap and closes itself after a pick. */
+  return (
+    <div>
       {value ? (
-        <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/50 rounded-2xl px-3.5 py-3">
+        <div className="flex items-center gap-2.5 bg-emerald-500/10 border border-emerald-500/50 rounded-2xl px-3.5 py-3">
           <Check className="w-5 h-5 text-emerald-400 shrink-0" />
           <p className="flex-1 min-w-0 text-sm font-bold text-white truncate">{value.name}</p>
           <button type="button" onClick={() => onChange(null)} className="shrink-0 text-slate-400 hover:text-white p-1" aria-label="Chọn lại">
             <X className="w-5 h-5" />
           </button>
         </div>
+      ) : !open && allowCurrent && currentPos ? (
+        <div className="flex items-center gap-2.5 bg-black/30 border border-white/10 rounded-2xl px-3.5 py-3">
+          <LocateFixed className="w-5 h-5 text-sky-400 shrink-0" />
+          <p className="flex-1 min-w-0 text-sm font-bold text-white truncate">Vị trí hiện tại</p>
+          <button type="button" onClick={() => setOpen(true)} className="shrink-0 text-xs font-bold text-sky-300 bg-sky-500/15 px-2.5 py-1.5 rounded-full">Đổi</button>
+        </div>
+      ) : !open ? (
+        <button type="button" onClick={() => setOpen(true)} className="w-full flex items-center gap-2.5 bg-black/30 border border-white/10 rounded-2xl px-3.5 py-3 text-left">
+          {dot}
+          <span className="flex-1 min-w-0 text-sm font-bold text-slate-400 truncate">{label}</span>
+          <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
+        </button>
       ) : (
-        <>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2.5 px-0.5">
+            {dot}
+            <p className="flex-1 text-sm font-bold text-slate-300">{label}</p>
+            <button type="button" onClick={() => setOpen(false)} className="shrink-0 text-slate-400 hover:text-white p-1" aria-label="Thu gọn">
+              <ChevronUp className="w-5 h-5" />
+            </button>
+          </div>
+
           <div className="flex flex-wrap gap-1.5">
             {allowCurrent && (
               <button
                 type="button"
                 disabled={!currentPos}
-                onClick={() => currentPos && onChange({ lat: currentPos.lat, lng: currentPos.lng, name: 'Vị trí hiện tại' })}
-                className="px-3 py-1.5 rounded-full text-xs font-bold bg-sky-600 text-white disabled:bg-slate-800 disabled:text-slate-500 flex items-center gap-1"
+                onClick={() => currentPos && choose({ lat: currentPos.lat, lng: currentPos.lng, name: 'Vị trí hiện tại' })}
+                className="px-3 py-1.5 rounded-full text-xs font-bold bg-sky-600 text-white disabled:bg-white/10 disabled:text-slate-500 flex items-center gap-1"
               >
                 <LocateFixed className="w-3.5 h-3.5" /> Vị trí hiện tại
               </button>
@@ -230,12 +261,12 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Tên địa điểm, số nhà, tên đường…"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-2xl pl-10 pr-4 py-3 text-base text-white placeholder:text-slate-500"
+                  className="w-full bg-black/30 border border-white/10 rounded-2xl pl-10 pr-4 py-3 text-base text-white placeholder:text-slate-500"
                 />
               </div>
               {searching && <p className="text-xs text-slate-400 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang tìm…</p>}
               {results !== null && !searching && results.length === 0 && (
-                <p className="text-xs text-slate-400">Không thấy nơi này. Thử gõ thêm tên tỉnh, hoặc dùng mục Phường xã.</p>
+                <p className="text-xs text-slate-400">Không thấy nơi này — thử thêm tên tỉnh, hoặc dùng Phường xã.</p>
               )}
               {results && results.length > 0 && (
                 <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -243,8 +274,8 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
                     <button
                       key={`${h.lat}-${h.lon}-${i}`}
                       type="button"
-                      onClick={() => onChange({ lat: parseFloat(h.lat), lng: parseFloat(h.lon), name: shortName(h) })}
-                      className="w-full text-left bg-slate-900 border border-slate-700 rounded-2xl px-3.5 py-2.5 hover:border-sky-500"
+                      onClick={() => choose({ lat: parseFloat(h.lat), lng: parseFloat(h.lon), name: shortName(h) })}
+                      className="w-full text-left bg-black/30 border border-white/10 rounded-2xl px-3.5 py-2.5 hover:border-sky-500"
                     >
                       <span className="flex items-start gap-2">
                         <MapPin className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
@@ -265,7 +296,7 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
               <select
                 value={provinceCode}
                 onChange={(e) => setProvinceCode(e.target.value === '' ? '' : Number(e.target.value))}
-                className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-base text-white"
+                className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-base text-white"
               >
                 <option value="">— Chọn tỉnh / thành phố —</option>
                 {provinces?.map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
@@ -274,7 +305,7 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
                 disabled={provinceCode === '' || wards === null}
                 defaultValue=""
                 onChange={(e) => void pickWard(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-base text-white disabled:opacity-50"
+                className="w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-base text-white disabled:opacity-50"
               >
                 <option value="">— Chọn phường / xã —</option>
                 {wards?.map((w) => <option key={w.code} value={w.name}>{w.name}</option>)}
@@ -283,8 +314,7 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
               {wardNote && <p className="text-xs text-amber-300">{wardNote}</p>}
             </div>
           )}
-
-        </>
+        </div>
       )}
     </div>
   );
