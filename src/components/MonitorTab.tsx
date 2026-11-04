@@ -4,6 +4,7 @@ import { Flag, Play, ShieldCheck, Square, TriangleAlert } from 'lucide-react';
 import MapView from './MapView';
 import LivePanel from './LivePanel';
 import PushNotifyCard from './PushNotifyCard';
+import DangerZoneCard from './DangerZoneCard';
 import LiveUpdateBanner from './LiveUpdateBanner';
 import PlacePicker from './PlacePicker';
 import type { GeoState } from '../hooks/useGeolocation';
@@ -15,6 +16,7 @@ import { fetchRoute, type RouteResult } from '../utils/routing';
 import { loadTrip, saveTrip } from '../utils/storage';
 import { ensureLiveSession, loadLiveSessionCode } from '../utils/live';
 import { isPushConfigured, syncDmsDeadline } from '../utils/push';
+import { ZONE_TYPE_META, buildCommuneZones, communeContains, fetchCommuneGeometry, fetchDangerReports, loadCachedReports, type CommuneZone, type DangerReport, type ZoneGeometry } from '../utils/dangerZones';
 import type { PlacePoint, TripConfig } from '../types';
 
 interface Props {
@@ -104,6 +106,58 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
     if (!nearBorder) setBorderAlertedFor(null);
   }, [nearBorder, dangerKey, nearest, nearestLine, borderAlertedFor, onBorderAlarm]);
 
+  /* ------- community danger communes (v1.42): whole communes tinted by
+   * their real boundary + an entry warning while travelling. Reports are
+   * seeded from the localStorage cache, refreshed from the relay on mount
+   * and every 5 minutes; each reported commune's boundary polygon is then
+   * fetched once (OSM) and cached. The warning mirrors the border alarm:
+   * latches per commune, re-arms on exit, vibrates once. */
+  const [reports, setReports] = useState<DangerReport[]>(() => loadCachedReports());
+  const [geometries, setGeometries] = useState<Record<string, ZoneGeometry | null>>({});
+  const geomBusyRef = useRef<Set<string>>(new Set());
+  const [zoneAlertedKey, setZoneAlertedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => { void fetchDangerReports().then((r) => { if (alive) setReports(r); }); };
+    refresh();
+    const id = window.setInterval(refresh, 300000);
+    return () => { alive = false; window.clearInterval(id); };
+  }, []);
+
+  const communes = useMemo(() => buildCommuneZones(reports), [reports]);
+
+  useEffect(() => {
+    for (const c of communes) {
+      if (c.key in geometries || geomBusyRef.current.has(c.key)) continue;
+      geomBusyRef.current.add(c.key);
+      void fetchCommuneGeometry(c, c.centroid).then((g) => {
+        setGeometries((prev) => ({ ...prev, [c.key]: g }));
+      });
+    }
+  }, [communes, geometries]);
+
+  const zones = useMemo<CommuneZone[]>(
+    () => communes.map((c) => ({ ...c, geometry: geometries[c.key] ?? null })),
+    [communes, geometries],
+  );
+
+  const zoneHit = useMemo(() => {
+    if (!trip || geo.lat === null || geo.lng === null) return null;
+    const la = geo.lat;
+    const ln = geo.lng;
+    return zones.find((z) => communeContains(z, la, ln)) ?? null;
+  }, [trip, geo.lat, geo.lng, zones]);
+  const insideZone = !!zoneHit;
+
+  useEffect(() => {
+    if (insideZone && zoneHit && zoneAlertedKey !== zoneHit.key) {
+      setZoneAlertedKey(zoneHit.key);
+      try { navigator.vibrate?.([300, 120, 300]); } catch { /* no vibrate */ }
+    }
+    if (!insideZone) setZoneAlertedKey(null);
+  }, [insideZone, zoneHit, zoneAlertedKey]);
+
   const dms = useDeadMansSwitch(!!trip, onDeadManTimeout);
   const live = useLiveSmsUpdates(!!trip && !alarming, geo.lat, geo.lng);
 
@@ -112,10 +166,13 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
    * −5 min warning even after the traveler closes the web app — the
    * in-page countdown above dies with the page, the Worker's copy does
    * not. Sync on every arm / check-in (deadlineMs changes), clear on a
-   * deliberate trip end, and re-assert every 60s so a sync lost to a dead
-   * zone heals itself (the Worker only resets its "warned" flag when the
-   * deadline truly moves, so re-asserting the same value can never cause
-   * a duplicate warning). No-op until PUSH_WORKER_URL is configured. */
+   * deliberate trip end, and re-assert every 5 minutes so a sync lost to
+   * a dead zone heals itself (the Worker only resets its "warned" flag
+   * when the deadline truly moves, so re-asserting the same value can
+   * never cause a duplicate warning). 5 minutes is plenty for insurance
+   * — every real change already syncs immediately — and it cuts the
+   * Worker's request load fivefold versus the original 60s cadence.
+   * No-op until PUSH_WORKER_URL is configured. */
   const dmsDeadlineMs = dms.deadlineMs;
   useEffect(() => {
     if (!isPushConfigured()) return;
@@ -127,7 +184,7 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
     const code = ensureLiveSession();
     const sync = () => { if (dmsDeadlineMs) void syncDmsDeadline(code, dmsDeadlineMs); };
     sync();
-    const id = window.setInterval(sync, 60000);
+    const id = window.setInterval(sync, 300000);
     return () => window.clearInterval(id);
   }, [trip, dmsDeadlineMs]);
 
@@ -280,7 +337,7 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
     <LiveUpdateBanner visible={!!live.prompt} onSend={live.sendUpdate} onDismiss={live.dismiss} />
     <div className="grid gap-4 lg:grid-cols-[1fr_340px] items-start">
       <div className="space-y-3 min-w-0">
-        <MapView lat={geo.lat} lng={geo.lng} route={mapRoute ?? null} dest={mapDest} followUser={followUser} />
+        <MapView lat={geo.lat} lng={geo.lng} route={mapRoute ?? null} dest={mapDest} followUser={followUser} zones={zones} />
         {nearest && nearestLine && (
           <div className={`grid grid-cols-2 gap-2 ${nearBorder ? '' : ''}`}>
             <div className={`rounded-3xl p-3.5 border text-center ${nearLine ? 'bg-red-500/15 border-red-500' : 'bg-panel border-slate-700/60'}`}>
@@ -306,6 +363,16 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
             {devAlarm.kind === 'wrong'
               ? 'ĐANG ĐI NGƯỢC HƯỚNG ĐÍCH — NGÀY CÀNG XA NƠI CẦN ĐẾN!'
               : `ĐANG ĐI CHỆCH TUYẾN ĐƯỜNG DỰ ĐOÁN ${formatKm(devAlarm.offKm)}!`}
+          </div>
+        )}
+        {insideZone && zoneHit && (
+          <div className="bg-red-600 text-white rounded-3xl p-3.5 font-black text-center text-base animate-pulse">
+            <TriangleAlert className="inline w-5 h-5 mr-1 -mt-1" />
+            BẠN ĐANG Ở {zoneHit.wardName.toUpperCase()} — KHU VỰC CÓ BÁO NGUY HIỂM: {ZONE_TYPE_META[zoneHit.topType].label.toUpperCase()}!
+            <span className="block text-sm font-bold mt-0.5">{(zoneHit.reports.find((r) => r.type === zoneHit.topType) ?? zoneHit.reports[0]).description}</span>
+            {zoneHit.reports.length > 1 && (
+              <span className="block text-xs font-bold mt-0.5">+{zoneHit.reports.length - 1} báo cáo khác — chạm vào vùng tô màu trên bản đồ để xem hết</span>
+            )}
           </div>
         )}
         {rerouteNote && !devAlarm && (
@@ -387,6 +454,9 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
         </div>
         <div className="mt-4">
           <LivePanel onOpenLive={onOpenLive} />
+        </div>
+        <div className="mt-4">
+          <DangerZoneCard lat={geo.lat} lng={geo.lng} zones={zones} />
         </div>
       </div>
     </div>

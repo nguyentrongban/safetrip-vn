@@ -2,6 +2,7 @@ import LeafletMapView from './LeafletMapView';
 import MapboxMapView from './MapboxMapView';
 import { useMapEngine } from '../hooks/useMapEngine';
 import type { PlacePoint } from '../types';
+import type { CommuneZone } from '../utils/dangerZones';
 
 interface Props {
   lat: number | null;
@@ -13,6 +14,8 @@ interface Props {
   /** true: camera follows the user. false (setup preview): the map
    * frames the whole route instead of chasing the GPS dot. */
   followUser?: boolean;
+  /** Approved danger communes to tint by their real boundary (v1.42). */
+  zones?: CommuneZone[];
 }
 
 /**
@@ -22,10 +25,10 @@ interface Props {
  * at the same view — and stays there for the rest of the session.
  * With no token configured this renders exactly the v1.24 Leaflet map.
  */
-export default function MapView({ lat, lng, route = null, dest = null, followUser = true }: Props) {
+export default function MapView({ lat, lng, route = null, dest = null, followUser = true, zones = [] }: Props) {
   const { engine, savedView, fail } = useMapEngine();
   if (engine === 'mapbox') {
-    return <MapboxMapView lat={lat} lng={lng} onFail={fail} route={route} dest={dest} followUser={followUser} />;
+    return <MapboxMapView lat={lat} lng={lng} onFail={fail} route={route} dest={dest} followUser={followUser} zones={zones} />;
   }
-  return <LeafletMapView lat={lat} lng={lng} initialView={savedView} route={route} dest={dest} followUser={followUser} />;
+  return <LeafletMapView lat={lat} lng={lng} initialView={savedView} route={route} dest={dest} followUser={followUser} zones={zones} />;
 }

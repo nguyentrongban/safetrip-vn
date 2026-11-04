@@ -1,7 +1,42 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
+import { Circle, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { BORDER_LINES, BORDER_POINTS, BORDER_RADIUS_KM, ISLAND_GROUPS, LANDMARKS, SEA_LABEL } from '../utils/data';
+import { FALLBACK_RADIUS_M, ZONE_TYPE_META, confirmDangerZone, formatZoneDate, type CommuneZone, type ZoneGeometry } from '../utils/dangerZones';
+
+/** GeoJSON [lng, lat] rings → Leaflet [lat, lng] positions. */
+function geometryToLeaflet(geom: ZoneGeometry): [number, number][][] | [number, number][][][] {
+  const ring = (r: [number, number][]) => r.map(([lng, lat]) => [lat, lng] as [number, number]);
+  if (geom.type === 'Polygon') return geom.coordinates.map(ring);
+  return geom.coordinates.map((poly) => poly.map(ring));
+}
+
+/** Popup body shared by the real-boundary polygon and the fallback
+ * circle: every approved report for the commune, each with its source,
+ * freshness date and a re-confirm button. */
+function ZonePopupContent({ zone }: { zone: CommuneZone }) {
+  return (
+    <>
+      <b>⚠️ {zone.wardName}</b> — {zone.provinceName}<br />
+      {zone.reports.map((r) => (
+        <span key={r.id}>
+          <b style={{ color: ZONE_TYPE_META[r.type].color }}>{ZONE_TYPE_META[r.type].label}</b><br />
+          {r.description}<br />
+          <i>Nguồn: cộng đồng · Cập nhật {formatZoneDate(r.updatedAt)} · {r.confirmCount} lượt xác nhận</i>
+          <br />
+          <button
+            onClick={() => void confirmDangerZone(r.id)}
+            style={{ margin: '4px 0 8px', background: '#0F172A', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}
+          >
+            ✓ Vẫn còn nguy hiểm — xác nhận
+          </button>
+          <br />
+        </span>
+      ))}
+      {!zone.geometry && <i>Ranh giới xã/phường này chưa có dữ liệu bản đồ — vòng tròn là vị trí báo cáo gần đúng.</i>}
+    </>
+  );
+}
 
 const userIcon = L.divIcon({
   className: '',
@@ -109,6 +144,8 @@ interface Props {
   /** true: camera follows the user. false (setup preview): frame the
    * whole route instead. */
   followUser?: boolean;
+  /** Approved danger communes to tint by their real boundary (v1.42). */
+  zones?: CommuneZone[];
 }
 
 const destIcon = L.divIcon({
@@ -118,7 +155,7 @@ const destIcon = L.divIcon({
 });
 
 /** The original Leaflet/Esri map — kept intact as the fallback renderer. */
-export default function LeafletMapView({ lat, lng, initialView, route, dest, followUser = true }: Props) {
+export default function LeafletMapView({ lat, lng, initialView, route, dest, followUser = true, zones = [] }: Props) {
   const center: [number, number] = initialView?.center ?? (lat !== null && lng !== null ? [lat, lng] : [14.0583, 108.2772]);
   const [mapInst, setMapInst] = useState<L.Map | null>(null);
   const [mode, setMode] = useState<'street' | 'satellite'>('street');
@@ -194,6 +231,33 @@ export default function LeafletMapView({ lat, lng, initialView, route, dest, fol
             </Marker>
           </Fragment>
         ))}
+        {zones.map((z) => {
+          const meta = ZONE_TYPE_META[z.topType];
+          if (z.geometry) {
+            return (
+              <Polygon
+                key={z.key}
+                positions={geometryToLeaflet(z.geometry) as [number, number][][]}
+                pathOptions={{ color: meta.color, fillColor: meta.color, fillOpacity: 0.16, weight: 2 }}
+              >
+                <Popup><ZonePopupContent zone={z} /></Popup>
+              </Polygon>
+            );
+          }
+          if (z.centroid) {
+            return (
+              <Circle
+                key={z.key}
+                center={[z.centroid.lat, z.centroid.lng]}
+                radius={FALLBACK_RADIUS_M}
+                pathOptions={{ color: meta.color, fillColor: meta.color, fillOpacity: 0.12, weight: 2, dashArray: '6 6' }}
+              >
+                <Popup><ZonePopupContent zone={z} /></Popup>
+              </Circle>
+            );
+          }
+          return null;
+        })}
         <Marker position={[SEA_LABEL.lat, SEA_LABEL.lng]} icon={seaLabelIcon} interactive={false} zIndexOffset={400} />
         {LANDMARKS.map((g) => (
           <Marker key={g.id} position={[g.lat, g.lng]} icon={landmarkIcon(g.name)} zIndexOffset={800}>

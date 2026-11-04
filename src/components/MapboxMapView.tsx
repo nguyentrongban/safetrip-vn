@@ -14,6 +14,7 @@ import {
   type MapboxGL,
 } from '../utils/mapbox';
 import type { SavedView } from '../hooks/useMapEngine';
+import { FALLBACK_RADIUS_M, ZONE_TYPE_META, formatZoneDate, type CommuneZone, type ZoneGeometry } from '../utils/dangerZones';
 
 interface Props {
   lat: number | null;
@@ -26,6 +27,8 @@ interface Props {
   /** true: camera follows the user. false (setup preview): frame the
    * whole route instead. */
   followUser?: boolean;
+  /** Approved danger communes to tint by their real boundary (v1.42). */
+  zones?: CommuneZone[];
 }
 
 const DEST_HTML = '<div style="width:30px;height:30px;border-radius:50%;background:#fff;border:2.5px solid #10B981;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 8px rgba(15,23,42,.35)">🏁</div>';
@@ -58,6 +61,62 @@ function upsertRouteLayer(map: MapboxMap, route: [number, number][] | null): voi
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: { 'line-color': '#0EA5E9', 'line-width': 4.5, 'line-opacity': 0.95 },
   }, before);
+}
+
+/** Community danger zones (v1.41): tinted circles, one GeoJSON source
+ * with a per-feature color. Zone text is community-written (and owner-
+ * moderated) — still escaped before it lands in popup HTML. */
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
+function zonePopupHtml(z: CommuneZone): string {
+  const reports = z.reports.map((r) =>
+    `<b style="color:${ZONE_TYPE_META[r.type].color}">${escapeHtml(ZONE_TYPE_META[r.type].label)}</b><br/>${escapeHtml(r.description)}<br/><i>Nguồn: cộng đồng · Cập nhật ${escapeHtml(formatZoneDate(r.updatedAt))} · ${r.confirmCount} lượt xác nhận</i>`,
+  ).join('<br/><br/>');
+  const fallback = z.geometry ? '' : '<br/><i>Ranh giới xã/phường này chưa có dữ liệu bản đồ — vòng tròn là vị trí báo cáo gần đúng.</i>';
+  return `<b>⚠️ ${escapeHtml(z.wardName)}</b> — ${escapeHtml(z.provinceName)}<br/>${reports}${fallback}`;
+}
+
+function upsertZonesLayer(map: MapboxMap, gl: MapboxGL, zones: CommuneZone[]): void {
+  const features: { type: 'Feature'; properties: { color: string; body: string }; geometry: ZoneGeometry | { type: 'Polygon'; coordinates: [number, number][][] } }[] = [];
+  for (const z of zones) {
+    if (z.geometry) {
+      features.push({ type: 'Feature', properties: { color: ZONE_TYPE_META[z.topType].color, body: zonePopupHtml(z) }, geometry: z.geometry });
+    } else if (z.centroid) {
+      features.push({
+        type: 'Feature',
+        properties: { color: ZONE_TYPE_META[z.topType].color, body: zonePopupHtml(z) },
+        geometry: { type: 'Polygon', coordinates: [circlePolygon(z.centroid.lat, z.centroid.lng, FALLBACK_RADIUS_M / 1000)] },
+      });
+    }
+  }
+  const data = { type: 'FeatureCollection' as const, features };
+  const src = map.getSource('safetrip-danger-zones') as GeoJSONSource | undefined;
+  if (src) {
+    src.setData(data);
+    return;
+  }
+  map.addSource('safetrip-danger-zones', { type: 'geojson', data });
+  const before = map.getLayer('safetrip-islands-flag') ? 'safetrip-islands-flag' : undefined;
+  map.addLayer({
+    id: 'safetrip-danger-zones-fill', type: 'fill', source: 'safetrip-danger-zones',
+    paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.16 },
+  }, before);
+  map.addLayer({
+    id: 'safetrip-danger-zones-line', type: 'line', source: 'safetrip-danger-zones',
+    paint: { 'line-color': ['get', 'color'], 'line-width': 2, 'line-opacity': 0.9 },
+  }, before);
+  map.on('click', 'safetrip-danger-zones-fill', (e) => {
+    const p = e.features?.[0]?.properties as { body?: string } | undefined;
+    if (!p?.body) return;
+    new gl.Popup({ offset: 12, maxWidth: '300px' })
+      .setLngLat(e.lngLat)
+      .setHTML(p.body)
+      .addTo(map);
+  });
+  map.on('mouseenter', 'safetrip-danger-zones-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'safetrip-danger-zones-fill', () => { map.getCanvas().style.cursor = ''; });
 }
 
 const VN_CENTER: [number, number] = [108.2772, 14.0583]; // [lng, lat]
@@ -143,7 +202,7 @@ function addGateMarkers(map: MapboxMap, gl: MapboxGL): void {
  * Any engine failure is reported through onFail — the wrapper then swaps in
  * the Leaflet map at the same view, silently.
  */
-export default function MapboxMapView({ lat, lng, onFail, route = null, dest = null, followUser = true }: Props) {
+export default function MapboxMapView({ lat, lng, onFail, route = null, dest = null, followUser = true, zones = [] }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const glRef = useRef<MapboxGL | null>(null);
@@ -153,6 +212,8 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
   routeRef.current = route;
   const destRef = useRef(dest);
   destRef.current = dest;
+  const zonesRef = useRef(zones);
+  zonesRef.current = zones;
   const followUserRef = useRef(followUser);
   followUserRef.current = followUser;
   const bootIdRef = useRef(0);
@@ -228,6 +289,7 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
         addCustomLayers(map, gl);
         addGateMarkers(map, gl);
         upsertRouteLayer(map, routeRef.current);
+        upsertZonesLayer(map, gl, zonesRef.current);
         syncDestMarker();
         if (routeRef.current && routeRef.current.length > 1 && !followUserRef.current) {
           fitKeyRef.current = `${routeRef.current.length}|${routeRef.current[0][0]},${routeRef.current[0][1]}`;
@@ -303,6 +365,14 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route, dest]);
 
+  /* ---------------- danger zones (v1.41) ---------------- */
+  useEffect(() => {
+    const map = mapRef.current;
+    const gl = glRef.current;
+    if (!map || !gl || failedRef.current || !loadedRef.current) return;
+    try { upsertZonesLayer(map, gl, zones); } catch { /* style mid-swap */ }
+  }, [zones]);
+
   /* ---------------- frame the whole route (setup preview) ---------- */
   const fitKeyRef = useRef('');
   const fitToRoute = (r: [number, number][]) => {
@@ -339,6 +409,7 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
       applyBrandPaint(map, { satellite: m === 'satellite' });
       addCustomLayers(map, gl);
       upsertRouteLayer(map, routeRef.current);
+      upsertZonesLayer(map, gl, zonesRef.current);
     });
   };
 
