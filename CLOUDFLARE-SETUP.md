@@ -143,3 +143,14 @@ lưu trên máy, thay vì đếm lùi từng giây trong trang:
 Bản 1.36 giữ nguyên toàn bộ cơ chế này — chỉ chuyển nơi canh hạn từ
 Supabase sang Cloudflare Worker (trạm mới nhận cùng một mốc giờ tuyệt đối
 đó qua mục `/deadline`).
+
+## v1.44 — Worker giữ thêm vùng nguy hiểm + trang Admin chung
+
+Từ v1.44 Worker này giữ thêm kho **vùng nguy hiểm** trong cùng KV và một
+**trang Admin** duyệt CHUNG hai loại báo cáo cộng đồng:
+
+- `GET /zones`, `POST /zone-report`, `POST /zone-confirm` — vùng nguy hiểm theo xã/phường (lưu tại Worker).
+- `GET /admin?key=...` — trang Admin: duyệt vùng nguy hiểm (KV tại đây) + duyệt báo cáo **lừa đảo** (kho lừa đảo VẪN ở Supabase như cũ; Worker đọc/ghi nó qua khóa service-role).
+- `POST /admin-action` — thao tác duyệt/từ chối/gỡ từ trang Admin.
+
+Cần thêm **2 secrets** cho Worker: `ADMIN_KEY` (khóa mở trang admin, chuỗi ngẫu nhiên ≥16 ký tự) và `SUPABASE_SERVICE_KEY` (khóa service-role của project safetrip-live — CHỈ trang admin dùng, app không bao giờ thấy). Vùng nguy hiểm lưu trong **D1**: gắn D1 vào Worker với tên binding đúng là **`DB`** (Worker → Settings → Bindings → D1 database); bảng `danger_zones` do Worker tự tạo ở lần gọi đầu tiên, không cần chạy SQL.
