@@ -71,7 +71,7 @@ export const ZONE_TYPE_META: Record<DangerZoneType, { label: string; short: stri
 const TYPE_SEVERITY: DangerZoneType[] = ['cuop-giat', 'don-xe', 'duong-nguy-hiem'];
 
 /** Radius of the honest fallback circle when a boundary is unavailable. */
-export const FALLBACK_RADIUS_M = 1500;
+export const FALLBACK_RADIUS_M = 500;
 
 // ---------------------------------------------------------------------------
 // Cloudflare relay endpoints (the response shapes are already the
@@ -178,8 +178,8 @@ export function buildCommuneZones(reports: DangerReport[]): CommuneZone[] {
 // ---------------------------------------------------------------------------
 // Commune boundary polygons from OpenStreetMap (Nominatim), cached.
 // ---------------------------------------------------------------------------
-const GEOM_CACHE_PREFIX = 'safetrip_commune_geom_v1_';
-const GEOM_NULL_TTL_MS = 24 * 3600 * 1000;
+const GEOM_CACHE_PREFIX = 'safetrip_commune_geom_v2_';
+const GEOM_NULL_TTL_MS = 3600 * 1000;
 
 interface GeomCache { at: number; geom: ZoneGeometry | null }
 
@@ -245,19 +245,23 @@ export async function fetchCommuneGeometry(
   let geom: ZoneGeometry | null = null;
   try {
     const q = encodeURIComponent(`${zone.wardName}, ${zone.provinceName}, Việt Nam`);
-    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&polygon_geojson=1&polygon_threshold=0.0005&limit=5&q=${q}`;
+    // No polygon_threshold — the full boundary is only ~1–3 KB and the
+    // simplification crushed real outlines (55 pts → 10 for Bến Thành).
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&polygon_geojson=1&limit=5&q=${q}`;
     const res = await fetch(url, { headers: { Accept: 'application/json' } });
     if (res.ok) {
       const hits = (await res.json()) as NominatimHit[];
+      const adminCandidates: ZoneGeometry[] = [];
       const candidates: ZoneGeometry[] = [];
       for (const h of hits) {
         const g = h.geojson;
         if (g && (g.type === 'Polygon' || g.type === 'MultiPolygon') && g.coordinates) {
-          candidates.push(g as ZoneGeometry);
+          (h.type === 'administrative' ? adminCandidates : candidates).push(g as ZoneGeometry);
         }
       }
-      if (hint) geom = candidates.find((c) => pointInGeometry(hint.lat, hint.lng, c)) ?? null;
-      if (!geom && !hint) geom = candidates[0] ?? null;
+      const ordered = [...adminCandidates, ...candidates];
+      if (hint) geom = ordered.find((c) => pointInGeometry(hint.lat, hint.lng, c)) ?? null;
+      if (!geom && !hint) geom = ordered[0] ?? null;
       // With a hint but no containing candidate: leave geom null — a
       // wrong-commune polygon is worse than the honest fallback circle.
     }
