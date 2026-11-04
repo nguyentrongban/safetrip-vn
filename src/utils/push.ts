@@ -80,6 +80,16 @@ export function iosNeedsInstall(): boolean {
   return !standalone;
 }
 
+/** True when running as the installed home-screen app (not a browser
+ *  tab). The Monitor tab uses it to collapse browser-only guidance —
+ *  in a tab the push card shrinks to one slim row (v1.48). */
+export function isStandaloneApp(): boolean {
+  try {
+    return (navigator as unknown as { standalone?: boolean }).standalone === true
+      || window.matchMedia('(display-mode: standalone)').matches;
+  } catch { return false; }
+}
+
 export async function currentSubscription(): Promise<PushSubscription | null> {
   if (!isPushSupported()) return null;
   try {

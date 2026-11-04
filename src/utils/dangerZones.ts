@@ -32,6 +32,9 @@ export interface DangerReport {
   description: string;
   reportLat: number | null;
   reportLng: number | null;
+  /** Commune boundary resolved SERVER-side at approval time (v1.47+);
+   *  when present the app uses it directly and never fetches OSM. */
+  geometry?: ZoneGeometry | null;
   confirmCount: number;
   createdAt: string;
   updatedAt: string;
@@ -166,7 +169,7 @@ export function buildCommuneZones(reports: DangerReport[]): CommuneZone[] {
       key,
       provinceCode: first.provinceCode, provinceName: first.provinceName,
       wardCode: first.wardCode, wardName: first.wardName,
-      reports: rs, topType, geometry: null, centroid,
+      reports: rs, topType, geometry: rs.find((r) => r.geometry)?.geometry ?? null, centroid,
     });
   }
   return zones;
@@ -176,7 +179,7 @@ export function buildCommuneZones(reports: DangerReport[]): CommuneZone[] {
 // Commune boundary polygons from OpenStreetMap (Nominatim), cached.
 // ---------------------------------------------------------------------------
 const GEOM_CACHE_PREFIX = 'safetrip_commune_geom_v1_';
-const GEOM_NULL_TTL_MS = 7 * 24 * 3600 * 1000;
+const GEOM_NULL_TTL_MS = 24 * 3600 * 1000;
 
 interface GeomCache { at: number; geom: ZoneGeometry | null }
 
@@ -234,6 +237,9 @@ interface NominatimHit {
 export async function fetchCommuneGeometry(
   zone: CommuneZone, hint: { lat: number; lng: number } | null,
 ): Promise<ZoneGeometry | null> {
+  // Server-resolved boundary (attached at approval time) always wins —
+  // no OSM fetch, no cache trap.
+  if (zone.geometry) return zone.geometry;
   const cached = readGeomCache(zone.key);
   if (cached) return cached.geom;
   let geom: ZoneGeometry | null = null;
