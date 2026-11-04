@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        base: '#0F172A',
-        panel: '#1E293B',
+        base: '#07080A',
+        panel: '#121417',
         primary: '#3B82F6',
         danger: '#EF4444',
         warning: '#F59E0B',
