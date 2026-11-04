@@ -26,7 +26,12 @@ const TABS: { id: TabId; label: string; Icon: typeof House }[] = [
 const SHELL = 'max-w-md md:max-w-2xl lg:max-w-4xl mx-auto';
 
 export default function App() {
-  const [tab, setTab] = useState<TabId>('home');
+  const [tab, setTab] = useState<TabId>(() => {
+    // Deep link from the DMS push notification (push-sw.js opens
+    // /?tab=monitor): land straight on the check-in tab.
+    const wanted = new URLSearchParams(window.location.search).get('tab');
+    return TABS.some((x) => x.id === wanted) ? (wanted as TabId) : 'home';
+  });
   const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null);
   const [installed, setInstalled] = useState(false);
   const [booted, setBooted] = useState(false);
@@ -51,6 +56,30 @@ export default function App() {
       setLiveCfg((prev) => prev || loadLiveConfig());
     }, 3000);
     return () => clearInterval(id);
+  }, []);
+
+  // The ?tab= deep link is consumed once at startup (initial tab above);
+  // drop it from the address bar so a later manual reload opens normally.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('tab')) {
+      url.searchParams.delete('tab');
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+    }
+  }, []);
+
+  // The push service worker asks the open app to jump to a tab when a
+  // notification is tapped (see public/push-sw.js) — no reload needed.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const onMsg = (e: MessageEvent) => {
+      const d = e.data as { type?: string; tab?: string } | null;
+      if (d?.type === 'SAFETRIP_OPEN_TAB' && TABS.some((x) => x.id === d.tab)) {
+        setTab(d.tab as TabId);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
   }, []);
 
   const closeLive = useCallback(() => {
