@@ -12,7 +12,7 @@ interface Props {
   zones: CommuneZone[];
 }
 
-const inputCls = 'w-full bg-white/10 border border-slate-600 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none focus:border-sky-500 disabled:opacity-50';
+const inputCls = 'w-full bg-white/10 border border-slate-600 rounded-xl px-3 py-2.5 text-base text-white placeholder:text-slate-500 outline-none focus:border-sky-500 disabled:opacity-50';
 
 /**
  * "Khu vực nguy hiểm" card (v1.42 — commune edition) — legend for the

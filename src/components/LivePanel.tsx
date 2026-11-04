@@ -43,7 +43,7 @@ export default function LivePanel({ onOpenLive }: Props) {
     try { await navigator.clipboard.writeText(liveLink(myCode, cfg)); setCopied(true); window.setTimeout(() => setCopied(false), 2000); } catch { /* clipboard blocked */ }
   };
 
-  const inputCls = 'w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500';
+  const inputCls = 'w-full bg-black/30 border border-white/10 rounded-2xl px-4 py-3 text-base text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500';
 
   return (
     <section className="bg-panel rounded-3xl p-4 border border-white/10 space-y-3">

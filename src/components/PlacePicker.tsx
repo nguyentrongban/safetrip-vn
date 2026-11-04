@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronUp, Loader2, LocateFixed, MapPin, Search, X } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Check, ChevronDown, Loader2, LocateFixed, MapPin, Search, X } from 'lucide-react';
 import type { PlacePoint } from '../types';
 import { fetchProvinces, fetchWards, type VnProvince, type VnWard } from '../utils/vnAdmin';
 
@@ -168,6 +169,16 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
     void fetchWards(provinceCode).then(setWards).catch(() => setWards([]));
   }, [provinceCode]);
 
+  /* The editor is a Grab-style full-screen sheet: lock the page behind
+   * it so results can never push, stretch or zoom the layout (tấn's
+   * 2026-11-04 report of the inline editor breaking the screen). */
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [open ]);
+
   const pickWard = async (wardName: string) => {
     const prov = provinces?.find((p) => p.code === provinceCode);
     if (!prov || !wardName) return;
@@ -229,14 +240,15 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
           <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
         </button>
       ) : (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2.5 px-0.5">
+        <motion.div initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="fixed inset-0 z-50 flex flex-col bg-[#07080A]">
+          <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-white/10 shrink-0">
             {dot}
-            <p className="flex-1 text-sm font-bold text-slate-300">{label}</p>
-            <button type="button" onClick={() => setOpen(false)} className="shrink-0 text-slate-400 hover:text-white p-1" aria-label="Thu gọn">
-              <ChevronUp className="w-5 h-5" />
+            <p className="flex-1 text-base font-bold text-white">{label}</p>
+            <button type="button" onClick={() => setOpen(false)} className="shrink-0 text-slate-300 hover:text-white bg-white/10 rounded-full p-2" aria-label="Đóng">
+              <X className="w-5 h-5" />
             </button>
           </div>
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
 
           <div className="flex flex-wrap gap-1.5">
             {allowCurrent && (
@@ -269,7 +281,7 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
                 <p className="text-xs text-slate-400">Không thấy nơi này — thử thêm tên tỉnh, hoặc dùng Phường xã.</p>
               )}
               {results && results.length > 0 && (
-                <div className="space-y-2 max-h-80 overflow-y-auto">
+                <div className="space-y-2">
                   {results.map((h, i) => (
                     <button
                       key={`${h.lat}-${h.lon}-${i}`}
@@ -281,7 +293,7 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
                         <MapPin className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
                         <span className="min-w-0">
                           <span className="block text-sm font-bold text-white truncate">{shortName(h)}</span>
-                          <span className="block text-[11px] text-slate-400 truncate">{h.display_name}</span>
+                          <span className="block text-[11px] text-slate-400 leading-snug line-clamp-2 break-words">{h.display_name}</span>
                         </span>
                       </span>
                     </button>
@@ -314,7 +326,8 @@ export default function PlacePicker({ label, value, onChange, allowCurrent = fal
               {wardNote && <p className="text-xs text-amber-300">{wardNote}</p>}
             </div>
           )}
-        </div>
+          </div>
+        </motion.div>
       )}
     </div>
   );
