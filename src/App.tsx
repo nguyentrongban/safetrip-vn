@@ -148,19 +148,19 @@ export default function App() {
     <div className={`min-h-dvh bg-base text-slate-100 ${alarm.alarming ? 'bg-red-950' : ''}`}>
       {alarm.alarming && <div className="fixed inset-0 pointer-events-none z-40 border-8 border-red-500 animate-blink-red" />}
 
-      <header className="sticky top-0 z-30 bg-[#0F172A]/95 backdrop-blur border-b border-slate-800 px-4 py-3">
+      <header className="sticky top-0 z-30 bg-[#07080A]/90 backdrop-blur border-b border-white/10 px-4 py-3">
         <div className={`${SHELL} flex items-center gap-3`}>
           <span className="shrink-0 rounded-[14px] bg-gradient-to-br from-sky-400 to-emerald-400 p-[2px]">
             <img src="/logo.png" alt="SafeTrip VN" className="w-10 h-10 rounded-xl block" />
           </span>
-          <h1 className="flex-1 font-black text-white text-lg leading-none">SafeTrip VN</h1>
+          <h1 className="flex-1 font-bold tracking-tight text-white text-lg leading-none">SafeTrip VN</h1>
           <button onClick={() => { if (!gpsOk) geo.requestOnce(); }} className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full border ${gpsOk ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-red-500/15 text-red-300 border-red-500/40'}`}>
             <Satellite className="w-4 h-4" /> {gpsOk ? 'Định vị: Đang bật' : geo.status === 'error' ? 'Định vị: Chưa có tín hiệu' : geo.status === 'locating' ? 'Định vị: Đang tìm…' : 'Định vị: Đang tắt'}
           </button>
         </div>
         {!installed && deferredPrompt && (
           <div className={`${SHELL} mt-2`}>
-            <button onClick={installApp} className="w-full bg-primary text-white text-sm font-bold py-2.5 rounded-xl">📲 Ghim app ra màn hình chính</button>
+            <button onClick={installApp} className="w-full bg-white text-slate-900 text-sm font-bold py-2.5 rounded-full">📲 Ghim app ra màn hình chính</button>
           </div>
         )}
       </header>
@@ -191,7 +191,7 @@ export default function App() {
           liveCfg ? (
             <LiveView code={liveViewCode.toUpperCase()} cfg={liveCfg} onClose={closeLive} />
           ) : (
-            <div className="bg-panel rounded-3xl p-5 border border-slate-700/60 text-center space-y-3">
+            <div className="bg-panel rounded-3xl p-5 border border-white/10 text-center space-y-3">
               <p className="text-white font-black text-lg">Link này thiếu dữ liệu nối</p>
               <p className="text-sm text-slate-300">Hãy mở đúng link trong tin nhắn SOS, hoặc vào tab Giám Sát, panel "Theo dõi trực tiếp" để nhập mã.</p>
               <button onClick={closeLive} className="bg-primary text-white font-bold px-5 py-3 rounded-2xl">Quay lại app</button>
@@ -217,11 +217,11 @@ export default function App() {
       <LiveUpdateBanner visible={!!live.prompt} onSend={live.sendUpdate} onDismiss={live.dismiss} />
 
       {!liveViewCode && (
-      <nav className="fixed bottom-0 inset-x-0 z-30 bg-[#0B1220]/95 backdrop-blur border-t border-slate-800" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <nav className="fixed bottom-0 inset-x-0 z-30 bg-[#07080A]/90 backdrop-blur border-t border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className={`${SHELL} grid grid-cols-4`}>
           {TABS.map(({ id, label, Icon }) => (
-            <button key={id} onClick={() => setTab(id)} className={`relative py-2.5 flex flex-col items-center gap-0.5 text-xs font-bold ${tab === id ? 'text-sky-400' : 'text-slate-400'}`}>
-              {tab === id && <span className="absolute top-0 h-1 w-10 rounded-full bg-gradient-to-r from-sky-400 to-emerald-400" />}
+            <button key={id} onClick={() => setTab(id)} className={`relative py-2.5 flex flex-col items-center gap-0.5 text-xs font-bold ${tab === id ? 'text-white' : 'text-slate-500'}`}>
+              {tab === id && <motion.span layoutId="tabGlow" className="absolute top-0 h-1 w-10 rounded-full bg-gradient-to-r from-sky-400 to-emerald-400" transition={{ type: 'spring', stiffness: 500, damping: 40 }} />}
               <Icon className="w-6 h-6" /> {label}
               {id === 'home' && alarm.alarming && <span className="absolute top-1 right-4 w-2 h-2 rounded-full bg-red-500 animate-ping" />}
             </button>
