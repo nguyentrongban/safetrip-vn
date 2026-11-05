@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BadgeCheck, Ban, Camera, Car, ChevronDown, CircleCheck, Flag, MapPin, Phone, Search, ShieldAlert, Trash2, TriangleAlert, X } from 'lucide-react';
+import { BadgeCheck, Ban, Camera, Car, ChevronDown, CircleAlert, CircleCheck, Flag, MapPin, Phone, Search, ShieldAlert, Trash2, TriangleAlert, X } from 'lucide-react';
 import { BLACKLIST_DATABASE, CHECKLIST_QUESTIONS, PROVINCES } from '../utils/data';
 import { normalizePhone, normalizePlate } from '../utils/geo';
 import { loadReports, saveReports } from '../utils/storage';
-import { cloudinaryReady, cloudinaryThumb, cloudinaryWide, compressImage, isValidVnPhone, normalizeVnPhone, searchCommunity, submitCommunityReport, uploadEvidence, validateImageFile } from '../utils/fraudDb';
+import { cloudinaryReady, cloudinaryThumb, compressImage, isValidVnPhone, normalizeVnPhone, searchCommunity, submitCommunityReport, uploadEvidence, validateImageFile } from '../utils/fraudDb';
 import { fetchProvinces, fetchWards, type VnProvince, type VnWard } from '../utils/vnAdmin';
 import type { CommunityFraudEntry, PersonalReport } from '../types';
 
@@ -55,6 +55,7 @@ export default function SearchTab() {
   const [sendNote, setSendNote] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, boolean>>({});
   const [showForm, setShowForm] = useState(false);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Community search (approved reports only), debounced. Falls back silently
@@ -165,63 +166,75 @@ export default function SearchTab() {
         {searching && <p className="text-xs text-slate-400">Đang tra trong kho cộng đồng…</p>}
         {communityDown && query.trim().length >= 3 && <p className="text-[11px] text-slate-500">Chưa kết nối được kho cộng đồng — kết quả dưới đây là danh sách có sẵn trong máy.</p>}
 
-        {community.map((c) => (
-          <motion.div key={c.plate + c.createdAt} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="bg-panel border border-white/10 rounded-3xl p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 bg-red-500/15 text-red-400 text-xs font-bold px-2.5 py-1 rounded-full"><ShieldAlert className="w-3.5 h-3.5" /> CỘNG ĐỒNG CẢNH BÁO</span>
-              <span className="ml-auto inline-flex items-center gap-1 text-xs text-slate-400"><BadgeCheck className="w-4 h-4 text-emerald-400" /> {c.reportCount} báo cáo</span>
-            </div>
-            <div>
-              <p className="text-white font-black text-[26px] leading-8 tracking-tight">{c.plateDisplay}</p>
-              <p className="text-sm text-slate-400 flex items-center gap-1.5 pt-0.5"><Car className="w-4 h-4 shrink-0" /> {c.operatorName || 'Chưa xác định'}</p>
-            </div>
-            {(c.scamType || c.area) && (
-              <div className="space-y-1.5">
-                {c.scamType && <p className="flex items-start gap-2 text-sm text-slate-200"><TriangleAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" /> {c.scamType}</p>}
-                {c.area && <p className="flex items-start gap-2 text-sm text-slate-300"><MapPin className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" /> {c.area}</p>}
-              </div>
-            )}
-            {c.description && <p className="text-sm text-slate-300 leading-relaxed border-l-2 border-red-500/60 pl-3">{c.description}</p>}
-            {c.imageUrls.length > 0 && (
-              <div className={c.imageUrls.length > 1 ? 'grid grid-cols-2 gap-2' : ''}>
-                {c.imageUrls.map((u) => (
-                  <a key={u} href={u} target="_blank" rel="noreferrer"><img src={c.imageUrls.length > 1 ? cloudinaryThumb(u) : cloudinaryWide(u)} alt="Ảnh bằng chứng" loading="lazy" className={`w-full object-cover rounded-2xl border border-white/10 ${c.imageUrls.length > 1 ? 'h-36' : 'h-48'}`} /></a>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <p className="flex items-center gap-1.5 text-red-400 font-black"><Ban className="w-5 h-5 shrink-0" /> ĐỪNG LÊN XE NÀY</p>
-              <a href="tel:113" className="ml-auto inline-flex items-center gap-1.5 bg-red-600 active:bg-red-500 text-white text-sm font-bold pl-3.5 pr-4 py-2 rounded-full shrink-0"><Phone className="w-4 h-4" /> Gọi 113</a>
-            </div>
-          </motion.div>
-        ))}
+        {query.trim().length >= 3 && (
+          <div>
+            <button type="button" onClick={() => setShowDisclaimer((v) => !v)} className="flex items-start gap-1.5 text-left w-full">
+              <CircleAlert className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-px" />
+              <span className="text-[11px] leading-4 text-slate-500">Thông tin do cộng đồng đóng góp, chưa được kiểm chứng 100% — chỉ để tham khảo phòng tránh. <span className="text-slate-400 underline underline-offset-2">{showDisclaimer ? 'Thu gọn' : 'Xem thêm'}</span></span>
+            </button>
+            <AnimatePresence>
+              {showDisclaimer && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                  <p className="mt-2 bg-black/30 border border-white/10 rounded-2xl p-3 text-xs leading-5 text-slate-400">Các báo cáo ở đây do người dùng gửi lên và được duyệt đăng để cộng đồng tham khảo, phòng tránh rủi ro. SafeTrip VN không khẳng định thông tin chính xác tuyệt đối, và nội dung không nhằm bôi nhọ hay nhắm vào bất kỳ cá nhân, tổ chức nào. Thông tin nào chưa đúng sẽ được gỡ bỏ khi phát hiện.</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
-        {query.trim() && (hits.length > 0 ? hits.map((h) => (
-          <motion.div key={h.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="bg-panel border border-white/10 rounded-3xl p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 bg-red-500/15 text-red-400 text-xs font-bold px-2.5 py-1 rounded-full"><ShieldAlert className="w-3.5 h-3.5" /> DANH SÁCH ĐEN</span>
-              <span className={`ml-auto text-xs font-black ${h.risk === 'CRITICAL' ? 'text-red-400' : 'text-amber-400'}`}>{h.risk === 'CRITICAL' ? 'CỰC KỲ NGUY HIỂM' : 'RỦI RO CAO'}</span>
-            </div>
-            <div>
-              <p className="text-white font-black text-[26px] leading-8 tracking-tight">{h.plate}</p>
-              <p className="text-sm text-slate-400 flex items-center gap-1.5 pt-0.5"><Car className="w-4 h-4 shrink-0" /> {h.company}</p>
-            </div>
-            <div className="space-y-1.5">
-              <p className="flex items-start gap-2 text-sm text-slate-200"><Phone className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" /> {h.phone}</p>
-              <p className="flex items-start gap-2 text-sm text-slate-300"><Flag className="w-4 h-4 text-red-400 shrink-0 mt-0.5" /> Bị báo {h.reports} lần · gần nhất {h.lastSeen}</p>
-            </div>
-            {h.reason && <p className="text-sm text-slate-300 leading-relaxed border-l-2 border-red-500/60 pl-3">{h.reason}</p>}
-            <div className="flex items-center gap-2">
-              <p className="flex items-center gap-1.5 text-red-400 font-black"><Ban className="w-5 h-5 shrink-0" /> ĐỪNG LÊN XE NÀY</p>
-              <a href="tel:113" className="ml-auto inline-flex items-center gap-1.5 bg-red-600 active:bg-red-500 text-white text-sm font-bold pl-3.5 pr-4 py-2 rounded-full shrink-0"><Phone className="w-4 h-4" /> Gọi 113</a>
-            </div>
-          </motion.div>
-        )) : community.length === 0 && !searching && (
+        {(community.length > 0 || hits.length > 0) && (
+          <div className="bg-panel border border-white/10 rounded-3xl divide-y divide-white/5 overflow-hidden">
+            {community.map((c) => (
+              <motion.div key={c.plate + c.createdAt} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3.5 flex gap-3">
+                <div className="flex-1 min-w-0 space-y-1">
+                  <p className="flex items-center gap-1.5 min-w-0">
+                    <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+                    <span className="text-white font-extrabold text-[17px] tracking-tight shrink-0">{c.plateDisplay}</span>
+                    <span className="text-[13px] text-slate-400 truncate">{c.operatorName || 'Chưa xác định'}</span>
+                    <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-slate-400 shrink-0"><BadgeCheck className="w-3.5 h-3.5 text-emerald-400" /> {c.reportCount}</span>
+                  </p>
+                  {(c.scamType || c.area) && (
+                    <p className="flex items-center gap-3 text-xs text-slate-300 min-w-0">
+                      {c.scamType && <span className="inline-flex items-center gap-1 min-w-0"><TriangleAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" /><span className="truncate">{c.scamType}</span></span>}
+                      {c.area && <span className="inline-flex items-center gap-1 min-w-0"><MapPin className="w-3.5 h-3.5 text-sky-400 shrink-0" /><span className="truncate">{c.area}</span></span>}
+                    </p>
+                  )}
+                  {c.description && <p className="text-xs text-slate-400 leading-4 line-clamp-2">{c.description}</p>}
+                  <p className="flex items-center gap-1 text-red-400 font-black text-[11px] tracking-wide pt-0.5"><Ban className="w-3.5 h-3.5" /> ĐỪNG LÊN XE NÀY</p>
+                </div>
+                {c.imageUrls.length > 0 && (
+                  <a href={c.imageUrls[0]} target="_blank" rel="noreferrer" className="relative shrink-0 self-start">
+                    <img src={cloudinaryThumb(c.imageUrls[0])} alt="Ảnh bằng chứng" loading="lazy" className="w-16 h-16 rounded-xl object-cover border border-white/10" />
+                    {c.imageUrls.length > 1 && <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">+{c.imageUrls.length - 1}</span>}
+                  </a>
+                )}
+              </motion.div>
+            ))}
+            {hits.map((h) => (
+              <motion.div key={h.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3.5 space-y-1">
+                <p className="flex items-center gap-1.5 min-w-0">
+                  <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+                  <span className="text-white font-extrabold text-[17px] tracking-tight shrink-0">{h.plate}</span>
+                  <span className="text-[13px] text-slate-400 truncate">{h.company}</span>
+                  <span className={`ml-auto text-[11px] font-black shrink-0 ${h.risk === 'CRITICAL' ? 'text-red-400' : 'text-amber-400'}`}>{h.risk === 'CRITICAL' ? 'CỰC KỲ NGUY HIỂM' : 'RỦI RO CAO'}</span>
+                </p>
+                <p className="flex items-center gap-3 text-xs text-slate-300 min-w-0">
+                  <span className="inline-flex items-center gap-1 shrink-0"><Phone className="w-3.5 h-3.5 text-slate-400" /> {h.phone}</span>
+                  <span className="inline-flex items-center gap-1 min-w-0"><Flag className="w-3.5 h-3.5 text-red-400 shrink-0" /><span className="truncate">Bị báo {h.reports} lần · gần nhất {h.lastSeen}</span></span>
+                </p>
+                {h.reason && <p className="text-xs text-slate-400 leading-4 line-clamp-2">{h.reason}</p>}
+                <p className="flex items-center gap-1 text-red-400 font-black text-[11px] tracking-wide pt-0.5"><Ban className="w-3.5 h-3.5" /> ĐỪNG LÊN XE NÀY</p>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {query.trim() && hits.length === 0 && community.length === 0 && !searching && (
           <div className="bg-panel border border-white/10 rounded-3xl p-4 flex gap-2.5">
             <CircleCheck className="w-5 h-5 shrink-0 text-emerald-400" />
             <p className="text-sm text-slate-300">Chưa có cảnh báo cho "{query}". <span className="text-slate-400">Vẫn nên chụp biển số gửi người thân trước khi lên xe.</span></p>
           </div>
-        ))}
+        )}
       </section>
 
       <section className="bg-panel rounded-2xl p-4 border border-white/10 space-y-3">

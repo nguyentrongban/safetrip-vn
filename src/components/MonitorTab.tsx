@@ -368,11 +368,12 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
         {insideZone && zoneHit && (
           <motion.div initial={{ opacity: 0, scale: 0.95, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 380, damping: 24 }} className="bg-red-600 text-white rounded-3xl p-3.5 font-black text-center text-base animate-pulse">
             <TriangleAlert className="inline w-5 h-5 mr-1 -mt-1" />
-            BẠN ĐANG Ở {zoneHit.wardName.toUpperCase()} — KHU VỰC CÓ BÁO NGUY HIỂM: {ZONE_TYPE_META[zoneHit.topType].label.toUpperCase()}!
+            BẠN ĐANG Ở {zoneHit.wardName.toUpperCase()} — {ZONE_TYPE_META[zoneHit.topType].label.toUpperCase()}!
             <span className="block text-sm font-bold mt-0.5">{(zoneHit.reports.find((r) => r.type === zoneHit.topType) ?? zoneHit.reports[0]).description}</span>
             {zoneHit.reports.length > 1 && (
               <span className="block text-xs font-bold mt-0.5">+{zoneHit.reports.length - 1} báo cáo khác — chạm vào vùng tô màu trên bản đồ để xem hết</span>
             )}
+            <span className="block text-[11px] font-bold mt-1 opacity-90">Tin cộng đồng, chưa kiểm chứng — hãy cẩn thận hơn.</span>
           </motion.div>
         )}
         {rerouteNote && !devAlarm && (

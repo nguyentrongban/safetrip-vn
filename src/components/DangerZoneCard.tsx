@@ -193,13 +193,15 @@ export default function DangerZoneCard({ lat, lng, zones }: Props) {
               onChange={(e) => setDescription(e.target.value)}
               maxLength={200}
               rows={3}
-              placeholder="Chuyện gì hay xảy ra ở xã/phường này? (ít nhất 10 ký tự)"
+              placeholder="Bạn đã gặp chuyện gì ở xã/phường này? (ít nhất 10 ký tự)"
               className={`${inputCls} resize-none`}
             />
             <p className={`text-[11px] text-right ${descOk ? 'text-slate-500' : 'text-amber-300 font-bold'}`}>{description.trim().length}/200</p>
           </div>
 
           {note && <p className="text-sm text-amber-300 font-semibold">{note}</p>}
+
+          <p className="text-[11px] leading-4 text-slate-500">Chỉ báo điều bạn thật sự chứng kiến. Báo cáo phải qua duyệt mới hiện, và luôn ghi rõ là tin cộng đồng chưa kiểm chứng.</p>
 
           <div className="flex gap-2">
             <button

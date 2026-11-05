@@ -22,18 +22,19 @@ function ZonePopupContent({ zone }: { zone: CommuneZone }) {
         <span key={r.id}>
           <b style={{ color: ZONE_TYPE_META[r.type].color }}>{ZONE_TYPE_META[r.type].label}</b><br />
           {r.description}<br />
-          <i>Nguồn: cộng đồng · Cập nhật {formatZoneDate(r.updatedAt)} · {r.confirmCount} lượt xác nhận</i>
+          <i>Cộng đồng báo · Cập nhật {formatZoneDate(r.updatedAt)} · {r.confirmCount} lượt xác nhận</i>
           <br />
           <button
             onClick={() => void confirmDangerZone(r.id)}
             style={{ margin: '4px 0 8px', background: '#0F172A', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}
           >
-            ✓ Vẫn còn nguy hiểm — xác nhận
+            ✓ Xác nhận báo cáo này
           </button>
           <br />
         </span>
       ))}
       {!zone.geometry && <i>Ranh giới xã/phường này chưa có dữ liệu bản đồ — vòng tròn là vị trí báo cáo gần đúng.</i>}
+      <br /><i>Thông tin do cộng đồng báo, chưa được kiểm chứng — chỉ để tham khảo phòng tránh.</i>
     </>
   );
 }

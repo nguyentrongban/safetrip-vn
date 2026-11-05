@@ -72,10 +72,10 @@ function escapeHtml(s: string): string {
 
 function zonePopupHtml(z: CommuneZone): string {
   const reports = z.reports.map((r) =>
-    `<b style="color:${ZONE_TYPE_META[r.type].color}">${escapeHtml(ZONE_TYPE_META[r.type].label)}</b><br/>${escapeHtml(r.description)}<br/><i>Nguồn: cộng đồng · Cập nhật ${escapeHtml(formatZoneDate(r.updatedAt))} · ${r.confirmCount} lượt xác nhận</i>`,
+    `<b style="color:${ZONE_TYPE_META[r.type].color}">${escapeHtml(ZONE_TYPE_META[r.type].label)}</b><br/>${escapeHtml(r.description)}<br/><i>Cộng đồng báo · Cập nhật ${escapeHtml(formatZoneDate(r.updatedAt))} · ${r.confirmCount} lượt xác nhận</i>`,
   ).join('<br/><br/>');
   const fallback = z.geometry ? '' : '<br/><i>Ranh giới xã/phường này chưa có dữ liệu bản đồ — vòng tròn là vị trí báo cáo gần đúng.</i>';
-  return `<b>⚠️ ${escapeHtml(z.wardName)}</b> — ${escapeHtml(z.provinceName)}<br/>${reports}${fallback}`;
+  return `<b>⚠️ ${escapeHtml(z.wardName)}</b> — ${escapeHtml(z.provinceName)}<br/>${reports}${fallback}<br/><i>Thông tin do cộng đồng báo, chưa được kiểm chứng — chỉ để tham khảo phòng tránh.</i>`;
 }
 
 function upsertZonesLayer(map: MapboxMap, gl: MapboxGL, zones: CommuneZone[]): void {
