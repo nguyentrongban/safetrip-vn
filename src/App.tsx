@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BookOpen, House, MapPin, Satellite, Search, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, BookOpen, House, MapPin, Satellite, Search, TriangleAlert } from 'lucide-react';
 import HomeTab from './components/HomeTab';
 import MonitorTab from './components/MonitorTab';
 import SearchTab from './components/SearchTab';
 import HandbookTab from './components/HandbookTab';
+import ConsentSheet from './components/ConsentSheet';
+import { PrivacyContent, TermsContent } from './components/LegalPages';
+import ContactForm from './components/ContactForm';
+import { CONSENT_EVENT, clearConsent, getConsent, hasLocationConsent, saveConsent, type ConsentRecord } from './utils/consent';
 import LiveUpdateBanner from './components/LiveUpdateBanner';
 import LiveView from './components/LiveView';
 import { useGeolocation } from './hooks/useGeolocation';
@@ -32,6 +36,9 @@ export default function App() {
     const wanted = new URLSearchParams(window.location.search).get('tab');
     return TABS.some((x) => x.id === wanted) ? (wanted as TabId) : 'home';
   });
+  const [legal, setLegal] = useState<'privacy' | 'terms' | 'contact' | null>(null);
+  const [consentRec, setConsentRec] = useState<ConsentRecord | null>(() => getConsent());
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null);
   const [installed, setInstalled] = useState(false);
   const [booted, setBooted] = useState(false);
@@ -91,23 +98,49 @@ export default function App() {
   // location) re-checks automatically, so the gate closes by itself.
   const geoRequestOnce = geo.requestOnce;
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === 'visible' && geo.lat === null) geoRequestOnce(); };
+    const onVisible = () => { if (document.visibilityState === 'visible' && geo.lat === null && hasLocationConsent()) geoRequestOnce(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [geoRequestOnce, geo.lat]);
 
   const gpsOk = geo.status === 'granted';
 
-  // No custom gate screen (owner: it was cluttered). On open we simply ask
-  // once through the browser's own permission dialog. A returning visitor
-  // who already allowed keeps the permission automatically — the browser
-  // remembers it per site — so nothing pops up at all. The live-view page
-  // (family watching) never asks: the viewer needs no location.
+  const geoStopWatch = geo.stopWatch;
+  const agreeConsent = useCallback(() => {
+    setConsentRec(saveConsent('granted'));
+    setSheetOpen(false);
+    geoRequestOnce();
+  }, [geoRequestOnce]);
+  const laterConsent = useCallback(() => {
+    setConsentRec(saveConsent('later'));
+    setSheetOpen(false);
+  }, []);
+  const withdrawConsent = useCallback(() => {
+    clearConsent();
+    setConsentRec(null);
+    geoStopWatch();
+  }, [geoStopWatch]);
+
+  // A feature asked for GPS without consent on file -> open the sheet.
+  useEffect(() => {
+    const onAsk = () => { if (!liveViewCode) setSheetOpen(true); };
+    window.addEventListener(CONSENT_EVENT, onAsk);
+    return () => window.removeEventListener(CONSENT_EVENT, onAsk);
+  }, [liveViewCode]);
+
+  // Location consent (v1.58, Nghị định 13/2023): the app's own consent
+  // sheet comes first; the browser's permission dialog only appears
+  // after the user agrees there. Returning users with consent on file
+  // are asked once by the browser as before. The live-view page (family
+  // watching) never asks: the viewer needs no location.
   const bootedRef = useState({ done: false })[0];
   useEffect(() => {
     if (bootedRef.done) return;
     bootedRef.done = true;
-    if (!liveViewCode) geoRequestOnce();
+    if (!liveViewCode) {
+      if (hasLocationConsent()) geoRequestOnce();
+      else if (!getConsent()) setSheetOpen(true);
+    }
     setBooted(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -126,6 +159,11 @@ export default function App() {
     ensureLiveSession();
     alarm.triggerSOS("Dead Man's Switch: quá 3 phút không check-in", geo.lat, geo.lng);
   }, [alarm, geo.lat, geo.lng]);
+
+  useEffect(() => {
+    document.body.style.overflow = legal ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [legal]);
 
   useEffect(() => {
     const handler = (e: Event) => { e.preventDefault(); setDeferredPrompt(e); };
@@ -150,9 +188,7 @@ export default function App() {
 
       <header className="sticky top-0 z-30 bg-[#07080A]/90 backdrop-blur border-b border-white/10 px-4 py-3">
         <div className={`${SHELL} flex items-center gap-3`}>
-          <span className="shrink-0 rounded-[14px] bg-gradient-to-br from-sky-400 to-emerald-400 p-[2px]">
-            <img src="/logo-shield.png" alt="SafeTrip VN" className="h-10 w-10 object-contain block" />
-          </span>
+          <img src="/logo-shield.png" alt="SafeTrip VN" className="h-10 w-10 object-contain block shrink-0" />
           <h1 className="flex-1 font-bold tracking-tight text-white text-lg leading-none">SafeTrip VN</h1>
           <button onClick={() => { if (!gpsOk) geo.requestOnce(); }} className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-full border ${gpsOk ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-red-500/15 text-red-300 border-red-500/40'}`}>
             <Satellite className="w-4 h-4" /> {gpsOk ? 'Định vị: Đang bật' : geo.status === 'error' ? 'Định vị: Chưa có tín hiệu' : geo.status === 'locating' ? 'Định vị: Đang tìm…' : 'Định vị: Đang tắt'}
@@ -203,16 +239,41 @@ export default function App() {
               {tab === 'home' && <HomeTab geo={geo} alarming={alarm.alarming} onSOS={onSOS} onStopAlarm={alarm.stopAlarm} />}
               {tab === 'monitor' && <MonitorTab geo={geo} onBorderAlarm={onBorderAlarm} onDeadManTimeout={onDeadManTimeout} onOpenLive={(c) => setLiveViewCode(c)} alarming={alarm.alarming} />}
               {tab === 'search' && <SearchTab />}
-              {tab === 'handbook' && <HandbookTab />}
+              {tab === 'handbook' && <HandbookTab consentRec={consentRec} onOpenLegal={(p) => setLegal(p)} onAgreeConsent={agreeConsent} onWithdrawConsent={withdrawConsent} />}
             </motion.div>
           </AnimatePresence>
         )}
         {!liveViewCode && (
-          <footer className="mt-10 text-center">
+          <footer className="mt-10 text-center space-y-2">
+            <p className="flex items-center justify-center gap-2 text-xs font-semibold">
+              <button onClick={() => setLegal('privacy')} className="text-slate-400 underline underline-offset-2">Chính sách bảo mật</button>
+              <span className="text-slate-600">•</span>
+              <button onClick={() => setLegal('terms')} className="text-slate-400 underline underline-offset-2">Điều khoản sử dụng</button>
+              <span className="text-slate-600">•</span>
+              <button onClick={() => setLegal('contact')} className="text-slate-400 underline underline-offset-2">Liên hệ hỗ trợ</button>
+            </p>
             <p className="text-xs text-slate-500 font-semibold">SafeTrip VN • Phiên bản {APP_VERSION}</p>
+            <p className="text-[11px] text-slate-600">© 2026 SafeTrip VN. Mọi quyền được bảo lưu.</p>
+            <p className="text-[10px] leading-4 text-slate-600 px-6">Nghiêm cấm sao chép giao diện, mã nguồn và cạo dữ liệu khi chưa được đồng ý bằng văn bản.</p>
           </footer>
         )}
       </main>
+
+      {legal && (
+        <div className="fixed inset-0 z-50 bg-base overflow-y-auto">
+          <header className="sticky top-0 z-10 bg-[#07080A]/90 backdrop-blur border-b border-white/10 px-4 py-3">
+            <div className={`${SHELL} flex items-center gap-3`}>
+              <button onClick={() => setLegal(null)} aria-label="Quay lại" className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 text-white shrink-0"><ArrowLeft className="w-5 h-5" /></button>
+              <h2 className="font-bold tracking-tight text-white text-lg">{legal === 'privacy' ? 'Chính sách bảo mật' : legal === 'terms' ? 'Điều khoản sử dụng' : 'Liên hệ hỗ trợ'}</h2>
+            </div>
+          </header>
+          <div className={`${SHELL} px-4 py-5 pb-16`}>
+            {legal === 'privacy' ? <PrivacyContent /> : legal === 'terms' ? <TermsContent /> : <ContactForm />}
+          </div>
+        </div>
+      )}
+
+      <ConsentSheet open={sheetOpen} onAgree={agreeConsent} onLater={laterConsent} onOpenPrivacy={() => setLegal('privacy')} />
 
       <LiveUpdateBanner visible={!!live.prompt} onSend={live.sendUpdate} onDismiss={live.dismiss} />
 
