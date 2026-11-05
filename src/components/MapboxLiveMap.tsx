@@ -87,6 +87,7 @@ export default function MapboxLiveMap({ row, trail, initialView, onFail }: Props
           center: initialView ? [initialView.center[1], initialView.center[0]] : VN_CENTER,
           zoom: initialView?.zoom ?? 6,
           attributionControl: false,
+          antialias: false,
         });
       } catch (e) {
         fail(`map-construction-failed: ${e instanceof Error ? e.message : String(e)}`);

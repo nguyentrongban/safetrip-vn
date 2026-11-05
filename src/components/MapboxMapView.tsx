@@ -272,6 +272,7 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
           center: la !== null && ln !== null ? [ln, la] : VN_CENTER,
           zoom: la !== null ? 12 : 6,
           attributionControl: false,
+          antialias: false,
         });
       } catch (e) {
         fail(`map-construction-failed: ${e instanceof Error ? e.message : String(e)}`);

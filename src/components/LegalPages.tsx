@@ -43,10 +43,10 @@ export function PrivacyContent() {
       <Row term="Dữ liệu cá nhân nhạy cảm">Tọa độ vị trí GPS, vận tốc di chuyển và thời gian tương ứng — chỉ phát sinh khi bạn bật Giám Sát chuyến đi hoặc chia sẻ vị trí cho người thân.</Row>
       <Row term="Dữ liệu kỹ thuật">Loại thiết bị và trình duyệt; địa chỉ nhận thông báo đẩy của trình duyệt (chỉ dùng để gửi cảnh báo điểm danh về chính máy của bạn).</Row>
       <Row term="Dữ liệu trong báo cáo cộng đồng">Biển số xe, số điện thoại, tên nhà xe/tài xế, khu vực, nội dung mô tả và ảnh — do chính người gửi báo cáo cung cấp.</Row>
-      <Row term="Dữ liệu chỉ nằm trên máy của bạn">Số điện thoại người thân dùng cho tin SOS, các cài đặt ứng dụng và bản ghi đồng ý dùng vị trí. Nhóm này <b className="text-white">không bao giờ rời khỏi thiết bị</b>.</Row>
+      <Row term="Dữ liệu chỉ nằm trên máy của bạn">Số điện thoại người thân dùng cho tin SOS và các cài đặt ứng dụng. Nhóm này <b className="text-white">không bao giờ rời khỏi thiết bị</b>.</Row>
 
       <H>Điều 2. Sự đồng ý đối với dữ liệu vị trí</H>
-      <P>Theo Nghị định 13/2023/NĐ-CP, dữ liệu vị trí là dữ liệu cá nhân nhạy cảm. Ứng dụng chỉ truy cập GPS sau khi bạn đồng ý tại màn hình đồng ý riêng và cấp quyền định vị của trình duyệt. Không đồng ý, bạn vẫn dùng được Tra Cứu, Sổ Tay và các tính năng không cần vị trí. Bạn rút lại đồng ý bất cứ lúc nào tại mục Sổ Tay → Pháp lý &amp; quyền riêng tư; khi đó ứng dụng ngừng thu thập vị trí ngay.</P>
+      <P>Theo Nghị định 13/2023/NĐ-CP, dữ liệu vị trí là dữ liệu cá nhân nhạy cảm. Ứng dụng chỉ truy cập GPS sau khi bạn đồng ý tại màn hình đồng ý riêng và cấp quyền định vị của trình duyệt. Không đồng ý, bạn vẫn dùng được Tra Cứu, Sổ Tay và các tính năng không cần vị trí. Bạn rút lại đồng ý bất cứ lúc nào tại mục Sổ Tay → Pháp lý &amp; quyền riêng tư; khi đó ứng dụng ngừng thu thập vị trí ngay. Để có căn cứ khi xảy ra tranh chấp, mỗi lần bạn đồng ý hoặc thu hồi, ứng dụng đồng thời gửi một bản ghi ẩn danh lên máy chủ — chỉ gồm mã thiết bị ngẫu nhiên, thời gian và phiên bản chính sách; bản ghi này không chứa tên, số điện thoại hay tọa độ vị trí của bạn.</P>
       <P>Khi bạn chia sẻ liên kết theo dõi, bạn bảo đảm người xem là người thân được bạn cho phép. Người xem không cần tài khoản và ứng dụng không thu thập thêm dữ liệu cá nhân của người xem ngoài dữ liệu kỹ thuật tối thiểu để tải trang.</P>
 
       <H>Điều 3. Mục đích xử lý</H>
@@ -62,7 +62,7 @@ export function PrivacyContent() {
       <Row term="Dữ liệu vị trí chuyến đi">Tự động xóa sau tối đa <b className="text-white">3 ngày</b> kể từ lần cập nhật cuối. Liên kết theo dõi vô hiệu khi bạn dừng chia sẻ và mã chuyến đi được thay mới cho chuyến sau.</Row>
       <Row term="Đăng ký thông báo &amp; hạn điểm danh">Lưu đến khi chuyến đi kết thúc hoặc bạn hủy — dùng để gửi cảnh báo trước giờ điểm danh 5 phút.</Row>
       <Row term="Báo cáo cộng đồng">Lưu đến khi bị gỡ theo kiểm duyệt hoặc theo yêu cầu hợp lệ của người liên quan.</Row>
-      <Row term="Bản ghi đồng ý">Chỉ lưu trên máy của bạn; mất khi bạn thu hồi đồng ý hoặc xóa dữ liệu trình duyệt.</Row>
+      <Row term="Bản ghi đồng ý">Bản ghi chính lưu trên máy của bạn. Ngoài ra còn một bản ghi ẩn danh trên máy chủ (mã thiết bị ngẫu nhiên, thời gian, phiên bản chính sách — không có danh tính hay vị trí) dùng để chứng minh việc đồng ý khi có tranh chấp; bản ghi ẩn danh này được giữ lại kể cả sau khi bạn thu hồi, vì đó là căn cứ pháp lý cho cả hai phía.</Row>
 
       <H>Điều 5. Bên xử lý và chuyển dữ liệu</H>
       <P>Để vận hành, dữ liệu được xử lý qua các nhà cung cấp hạ tầng: Supabase (trung chuyển vị trí, cơ sở dữ liệu báo cáo xe), Cloudflare (thông báo, điểm danh, báo cáo khu vực), Cloudinary (lưu ảnh báo cáo), Mapbox/OpenStreetMap (tải hình bản đồ) và Vercel (đếm lượt truy cập ẩn danh). Một số máy chủ của các nhà cung cấp này đặt ngoài Việt Nam; khi bạn dùng tính năng tương ứng, dữ liệu cần thiết được chuyển tới hạ tầng đó đúng mục đích đã nêu. Chỉ người có đúng mã chuyến đi mới xem được vị trí của bạn.</P>

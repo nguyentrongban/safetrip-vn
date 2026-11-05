@@ -67,7 +67,7 @@ export default function ContactForm() {
       if (res.ok) { setStatus('sent'); return; }
       const j = await res.json().catch(() => null) as { error?: string } | null;
       if (j?.error === 'bad_code') setVerifyMsg('Mã chưa đúng — kiểm tra lại trong email nhé.');
-      else if (j?.error === 'expired') setVerifyMsg('Mã đã hết hạn (30 phút) — bấm "Gửi lại mã" để nhận mã mới.');
+      else if (j?.error === 'expired') setVerifyMsg('Mã đã hết hạn (15 phút) — bấm "Gửi lại mã" để nhận mã mới.');
       else if (j?.error === 'too_many_attempts') setVerifyMsg('Nhập sai quá nhiều lần — bấm "Gửi lại mã" để nhận mã mới.');
       else if (j?.error === 'not_pending') setStatus('sent');
       else setVerifyMsg('Chưa xác nhận được — thử lại sau ít phút nhé.');
@@ -116,7 +116,7 @@ export default function ContactForm() {
           <CheckCircle2 className="w-4 h-4" /> {busy ? 'Đang kiểm tra…' : 'Xác nhận'}
         </button>
         <button onClick={resend} disabled={busy} className="w-full bg-white/10 text-slate-200 font-bold py-3 rounded-full active:scale-[0.98] transition disabled:opacity-60">Gửi lại mã</button>
-        <p className="text-[11px] text-slate-500 leading-4 text-center">Không thấy thư? Xem thử mục Spam hoặc Quảng cáo. Mã hết hạn sau 30 phút. Đã ấn nút xác nhận trong email rồi thì bạn cứ đóng trang này — yêu cầu đã được gửi.</p>
+        <p className="text-[11px] text-slate-500 leading-4 text-center">Không thấy thư? Xem thử mục Spam hoặc Quảng cáo. Mã hết hạn sau 15 phút. Đã ấn nút xác nhận trong email rồi thì bạn cứ đóng trang này — yêu cầu đã được gửi.</p>
       </article>
     );
   }

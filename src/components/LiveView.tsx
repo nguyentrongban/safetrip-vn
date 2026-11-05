@@ -62,7 +62,7 @@ export default function LiveView({ code, cfg, onClose }: Props) {
       setTick((x) => x + 1);
     };
     void load();
-    const id = window.setInterval(() => { void load(); }, 10000);
+    const id = window.setInterval(() => { if (!document.hidden) void load(); }, 10000);
     return () => { alive = false; clearInterval(id); };
   }, [cfg, code]);
 

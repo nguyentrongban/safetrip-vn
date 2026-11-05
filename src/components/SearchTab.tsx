@@ -12,21 +12,29 @@ const SCAM_TYPES = ['Lừa đảo việc làm / nguy cơ bán người', 'Xe dù
 
 interface PhotoItem { id: string; blob: Blob; preview: string; kb: number }
 
+// Form draft (v1.65): a page reload must not wipe a half-filled
+// report. Text fields only, kept for this browser session — the photo
+// itself cannot be stored and has to be picked again after a reload.
+const DRAFT_KEY = 'safetrip_search_draft_v1';
+interface SearchDraft { query?: string; plate?: string; company?: string; phone?: string; scamType?: string; area?: string; desc?: string; provinceCode?: number | ''; provinceName?: string; wardName?: string; showForm?: boolean }
+function loadDraft0(): SearchDraft { try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}') as SearchDraft; } catch { return {}; } }
+const draft0 = loadDraft0();
+
 export default function SearchTab() {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(() => draft0.query ?? '');
   const [community, setCommunity] = useState<CommunityFraudEntry[]>([]);
   const [searching, setSearching] = useState(false);
   const [communityDown, setCommunityDown] = useState(false);
   const [reports, setReports] = useState<PersonalReport[]>(() => loadReports());
-  const [plate, setPlate] = useState(''); const [company, setCompany] = useState('');
-  const [phone, setPhone] = useState(''); const [scamType, setScamType] = useState(SCAM_TYPES[0]);
-  const [area, setArea] = useState(''); const [desc, setDesc] = useState('');
+  const [plate, setPlate] = useState(() => draft0.plate ?? ''); const [company, setCompany] = useState(() => draft0.company ?? '');
+  const [phone, setPhone] = useState(() => draft0.phone ?? ''); const [scamType, setScamType] = useState(() => draft0.scamType ?? SCAM_TYPES[0]);
+  const [area, setArea] = useState(() => draft0.area ?? ''); const [desc, setDesc] = useState(() => draft0.desc ?? '');
   // Khu vực theo API hành chính VN sau sáp nhập: tỉnh/thành (34) → phường/xã.
   const [provinces, setProvinces] = useState<VnProvince[]>([]);
-  const [provinceCode, setProvinceCode] = useState<number | ''>('');
-  const [provinceName, setProvinceName] = useState('');
+  const [provinceCode, setProvinceCode] = useState<number | ''>(() => draft0.provinceCode ?? '');
+  const [provinceName, setProvinceName] = useState(() => draft0.provinceName ?? '');
   const [wards, setWards] = useState<VnWard[]>([]);
-  const [wardName, setWardName] = useState('');
+  const [wardName, setWardName] = useState(() => draft0.wardName ?? '');
   const [adminOffline, setAdminOffline] = useState(false);
 
   useEffect(() => {
@@ -54,8 +62,11 @@ export default function SearchTab() {
   const [sending, setSending] = useState(false);
   const [sendNote, setSendNote] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, boolean>>({});
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(() => draft0.showForm ?? false);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
+  useEffect(() => {
+    try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ query, plate, company, phone, scamType, area, desc, provinceCode, provinceName, wardName, showForm })); } catch { /* storage blocked */ }
+  }, [query, plate, company, phone, scamType, area, desc, provinceCode, provinceName, wardName, showForm]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Community search (approved reports only), debounced. Falls back silently
