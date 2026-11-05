@@ -41,6 +41,11 @@ export function cloudinaryThumb(url: string): string {
   return url.replace('/image/upload/', '/image/upload/w_400,c_limit,f_auto,q_auto/');
 }
 
+/** Wider variant for the full-width evidence photo on a result card. */
+export function cloudinaryWide(url: string): string {
+  return url.replace('/image/upload/', '/image/upload/w_900,c_limit,f_auto,q_auto/');
+}
+
 // ---------------------------------------------------------------------------
 // Form validation rules (v1.20) — mirrored server-side in fraud_report so a
 // modified client cannot bypass them.
