@@ -1,16 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, BookOpen, House, MapPin, Satellite, Search, TriangleAlert } from 'lucide-react';
 import HomeTab from './components/HomeTab';
-import MonitorTab from './components/MonitorTab';
 import SearchTab from './components/SearchTab';
-import HandbookTab from './components/HandbookTab';
 import ConsentSheet from './components/ConsentSheet';
-import { PrivacyContent, TermsContent } from './components/LegalPages';
-import ContactForm from './components/ContactForm';
-import { CONSENT_EVENT, clearConsent, getConsent, hasLocationConsent, saveConsent, type ConsentRecord } from './utils/consent';
+import { CONSENT_EVENT, clearConsent, deferConsent, ensureConsentLogged, getConsent, hasLocationConsent, saveConsent, type ConsentRecord } from './utils/consent';
 import LiveUpdateBanner from './components/LiveUpdateBanner';
-import LiveView from './components/LiveView';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useAlarm } from './hooks/useAlarm';
 import { useLiveSmsUpdates } from './hooks/useLiveSmsUpdates';
@@ -19,6 +14,16 @@ import { decodeConfigParam, ensureLiveSession, loadLiveConfig, type LiveConfig }
 import { loadTrip } from './utils/storage';
 import { APP_VERSION } from './version';
 import type { TabId } from './types';
+
+// Heavy screens load on demand (v1.65): the map engine alone is ~2 MB
+// and must not weigh down the SOS tab or the first open.
+const MonitorTab = lazy(() => import('./components/MonitorTab'));
+const HandbookTab = lazy(() => import('./components/HandbookTab'));
+const ContactForm = lazy(() => import('./components/ContactForm'));
+const LiveView = lazy(() => import('./components/LiveView'));
+const PrivacyContent = lazy(() => import('./components/LegalPages').then((m) => ({ default: m.PrivacyContent })));
+const TermsContent = lazy(() => import('./components/LegalPages').then((m) => ({ default: m.TermsContent })));
+const TabFallback = () => <div className="py-16 text-center text-sm font-semibold text-slate-400">Đang tải…</div>;
 
 const TABS: { id: TabId; label: string; Icon: typeof House }[] = [
   { id: 'home', label: 'SOS', Icon: House },
@@ -34,8 +39,18 @@ export default function App() {
     // Deep link from the DMS push notification (push-sw.js opens
     // /?tab=monitor): land straight on the check-in tab.
     const wanted = new URLSearchParams(window.location.search).get('tab');
-    return TABS.some((x) => x.id === wanted) ? (wanted as TabId) : 'home';
+    if (TABS.some((x) => x.id === wanted)) return wanted as TabId;
+    // A reload (PWA update, browser memory cleanup) must not throw the
+    // user back to the SOS tab: restore the tab they were on (v1.65).
+    try {
+      const saved = localStorage.getItem('safetrip_ui_tab');
+      if (TABS.some((x) => x.id === saved)) return saved as TabId;
+    } catch { /* storage blocked */ }
+    return 'home';
   });
+  useEffect(() => {
+    try { localStorage.setItem('safetrip_ui_tab', tab); } catch { /* storage blocked */ }
+  }, [tab]);
   const [legal, setLegal] = useState<'privacy' | 'terms' | 'contact' | null>(null);
   const [consentRec, setConsentRec] = useState<ConsentRecord | null>(() => getConsent());
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -59,6 +74,7 @@ export default function App() {
 
   useEffect(() => {
     const id = window.setInterval(() => {
+      if (document.hidden) return;
       setTripActive(!!loadTrip());
       setLiveCfg((prev) => prev || loadLiveConfig());
     }, 3000);
@@ -112,7 +128,10 @@ export default function App() {
     geoRequestOnce();
   }, [geoRequestOnce]);
   const laterConsent = useCallback(() => {
-    setConsentRec(saveConsent('later'));
+    // "Để sau" dismisses the sheet for the current view only — the
+    // next page load asks again, until the user agrees (owner's rule).
+    deferConsent();
+    setConsentRec(null);
     setSheetOpen(false);
   }, []);
   const withdrawConsent = useCallback(() => {
@@ -120,6 +139,9 @@ export default function App() {
     setConsentRec(null);
     geoStopWatch();
   }, [geoStopWatch]);
+
+  // One-time backfill of the anonymous consent evidence log (v1.67).
+  useEffect(() => { ensureConsentLogged(); }, []);
 
   // A feature asked for GPS without consent on file -> open the sheet.
   useEffect(() => {
@@ -139,7 +161,7 @@ export default function App() {
     bootedRef.done = true;
     if (!liveViewCode) {
       if (hasLocationConsent()) geoRequestOnce();
-      else if (!getConsent()) setSheetOpen(true);
+      else setSheetOpen(true); // Owner's rule (2026-11-05 21:38): skipping never silences the ask — every page load shows the sheet again until the user agrees to share location.
     }
     setBooted(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -225,7 +247,7 @@ export default function App() {
       <main className={`${SHELL} px-4 pt-4 pb-28`}>
         {liveViewCode ? (
           liveCfg ? (
-            <LiveView code={liveViewCode.toUpperCase()} cfg={liveCfg} onClose={closeLive} />
+            <Suspense fallback={<TabFallback />}><LiveView code={liveViewCode.toUpperCase()} cfg={liveCfg} onClose={closeLive} /></Suspense>
           ) : (
             <div className="bg-panel rounded-3xl p-5 border border-white/10 text-center space-y-3">
               <p className="text-white font-black text-lg">Link này thiếu dữ liệu nối</p>
@@ -236,10 +258,12 @@ export default function App() {
         ) : (
           <AnimatePresence mode="wait">
             <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
+              <Suspense fallback={<TabFallback />}>
               {tab === 'home' && <HomeTab geo={geo} alarming={alarm.alarming} onSOS={onSOS} onStopAlarm={alarm.stopAlarm} />}
               {tab === 'monitor' && <MonitorTab geo={geo} onBorderAlarm={onBorderAlarm} onDeadManTimeout={onDeadManTimeout} onOpenLive={(c) => setLiveViewCode(c)} alarming={alarm.alarming} />}
               {tab === 'search' && <SearchTab />}
               {tab === 'handbook' && <HandbookTab consentRec={consentRec} onOpenLegal={(p) => setLegal(p)} onAgreeConsent={agreeConsent} onWithdrawConsent={withdrawConsent} />}
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         )}
@@ -268,7 +292,7 @@ export default function App() {
             </div>
           </header>
           <div className={`${SHELL} px-4 py-5 pb-16`}>
-            {legal === 'privacy' ? <PrivacyContent /> : legal === 'terms' ? <TermsContent /> : <ContactForm />}
+            <Suspense fallback={<TabFallback />}>{legal === 'privacy' ? <PrivacyContent /> : legal === 'terms' ? <TermsContent /> : <ContactForm />}</Suspense>
           </div>
         </div>
       )}
