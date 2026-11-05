@@ -61,9 +61,9 @@ export interface CommuneZone {
 }
 
 export const ZONE_TYPE_META: Record<DangerZoneType, { label: string; short: string; color: string }> = {
-  'cuop-giat': { label: 'Khu vực hay xảy ra cướp giật', short: 'Cướp giật', color: '#EF4444' },
-  'don-xe': { label: 'Điểm đón xe bất thường', short: 'Đón xe bất thường', color: '#F59E0B' },
-  'duong-nguy-hiem': { label: 'Đoạn đường nguy hiểm', short: 'Đường nguy hiểm', color: '#A855F7' },
+  'cuop-giat': { label: 'Có báo cáo cướp giật', short: 'Cướp giật', color: '#EF4444' },
+  'don-xe': { label: 'Có báo cáo điểm đón xe bất thường', short: 'Đón xe bất thường', color: '#F59E0B' },
+  'duong-nguy-hiem': { label: 'Có báo cáo đoạn đường nguy hiểm', short: 'Đường nguy hiểm', color: '#A855F7' },
 };
 
 /** Severity order for choosing a commune's tint when it has several
