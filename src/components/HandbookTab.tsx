@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Baby, ChevronDown, HeartPulse, KeyRound, Siren } from 'lucide-react';
+import { Baby, ChevronDown, ChevronRight, FileText, HeartPulse, KeyRound, MapPin, Scale, ScrollText, Siren } from 'lucide-react';
 import { GUIDE_ARTICLES } from '../utils/data';
+import { POLICY_VERSION, type ConsentRecord } from '../utils/consent';
 
 const HOTLINES = [
   { number: '113', label: 'Công An', desc: 'Bắt cóc, khống chế, tội phạm', color: 'bg-blue-600', Icon: Siren },
@@ -9,8 +10,18 @@ const HOTLINES = [
   { number: '115', label: 'Cấp Cứu', desc: 'Y tế khẩn cấp', color: 'bg-red-600', Icon: HeartPulse },
 ];
 
-export default function HandbookTab() {
+interface HandbookProps {
+  consentRec: ConsentRecord | null;
+  onOpenLegal: (p: 'privacy' | 'terms') => void;
+  onAgreeConsent: () => void;
+  onWithdrawConsent: () => void;
+}
+
+export default function HandbookTab({ consentRec, onOpenLegal, onAgreeConsent, onWithdrawConsent }: HandbookProps) {
   const [open, setOpen] = useState<string | null>(null);
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
+  const consentGranted = !!consentRec && consentRec.decision === 'granted' && consentRec.policy === POLICY_VERSION;
+  const consentDate = consentRec?.at ? new Date(consentRec.at).toLocaleDateString('vi-VN') : '';
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">
@@ -61,6 +72,37 @@ export default function HandbookTab() {
       <div className="bg-panel border border-white/10 rounded-3xl p-4 text-sm text-slate-200 flex gap-3">
         <KeyRound className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
         <p><b className="text-white">Mật mã an toàn:</b> thống nhất với gia đình một câu bình thường, ví dụ <i>"cho con gửi lời hỏi thăm bà"</i> — nói câu này trong cuộc gọi là người thân hiểu bạn đang bị khống chế, sẽ gọi 113 kèm vị trí của bạn.</p>
+      </div>
+
+      <div className="bg-panel border border-white/10 rounded-3xl p-4 space-y-3">
+        <p className="flex items-center gap-2 text-white font-black"><Scale className="w-5 h-5 text-sky-400" /> Pháp lý & quyền riêng tư</p>
+        <div className="space-y-2">
+          <button onClick={() => onOpenLegal('privacy')} className="w-full flex items-center gap-2.5 bg-black/30 border border-white/10 rounded-2xl px-3.5 py-3 text-sm font-bold text-slate-100 text-left active:scale-[0.99] transition">
+            <FileText className="w-4 h-4 text-sky-300 shrink-0" /> Chính sách bảo mật <ChevronRight className="w-4 h-4 text-slate-500 ml-auto shrink-0" />
+          </button>
+          <button onClick={() => onOpenLegal('terms')} className="w-full flex items-center gap-2.5 bg-black/30 border border-white/10 rounded-2xl px-3.5 py-3 text-sm font-bold text-slate-100 text-left active:scale-[0.99] transition">
+            <ScrollText className="w-4 h-4 text-sky-300 shrink-0" /> Điều khoản sử dụng <ChevronRight className="w-4 h-4 text-slate-500 ml-auto shrink-0" />
+          </button>
+        </div>
+        <div className="bg-black/30 border border-white/10 rounded-2xl p-3.5 space-y-2.5">
+          <p className="flex items-center gap-2 text-sm font-bold text-white">
+            <MapPin className="w-4 h-4 text-sky-300 shrink-0" /> Đồng ý dùng vị trí
+            {consentGranted
+              ? <span className="ml-auto text-xs font-bold text-emerald-300 shrink-0">Đã đồng ý{consentDate ? ` · ${consentDate}` : ''}</span>
+              : <span className="ml-auto text-xs font-bold text-slate-400 shrink-0">Chưa đồng ý</span>}
+          </p>
+          <p className="text-xs text-slate-400 leading-5">Dữ liệu vị trí đã gửi lên máy chủ tự xóa sau tối đa 3 ngày. Dừng chia sẻ ở mục Giám Sát sẽ vô hiệu hóa link xem ngay lập tức.</p>
+          {consentGranted ? (
+            <button
+              onClick={() => { if (confirmWithdraw) { onWithdrawConsent(); setConfirmWithdraw(false); } else setConfirmWithdraw(true); }}
+              className={`w-full font-bold py-2.5 rounded-full text-sm active:scale-[0.98] transition ${confirmWithdraw ? 'bg-red-600 text-white' : 'bg-white/10 text-red-300'}`}
+            >
+              {confirmWithdraw ? 'Bấm lần nữa để xác nhận thu hồi' : 'Thu hồi đồng ý vị trí'}
+            </button>
+          ) : (
+            <button onClick={onAgreeConsent} className="w-full bg-white text-slate-900 font-black py-2.5 rounded-full text-sm active:scale-[0.98] transition">Đồng ý dùng vị trí</button>
+          )}
+        </div>
       </div>
     </div>
   );
