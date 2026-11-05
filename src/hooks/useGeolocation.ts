@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { askConsent, hasLocationConsent } from '../utils/consent';
 
 export interface GeoState {
   lat: number | null; lng: number | null; speedKmh: number | null;
@@ -30,6 +31,9 @@ export function useGeolocation() {
   }, []);
 
   const requestOnce = useCallback(() => {
+    // Consent gate (Nghị định 13/2023): without a valid in-app consent
+    // on file, never touch the browser's GPS — open the consent sheet.
+    if (!hasLocationConsent()) { askConsent(); return; }
     if (!('geolocation' in navigator)) { setState((s) => ({ ...s, status: 'unsupported', error: 'Thiết bị không hỗ trợ GPS' })); return; }
     setState((s) => ({ ...s, status: 'locating', error: '' }));
     // High accuracy first; indoors the first fix often times out on iPhone,
@@ -41,6 +45,7 @@ export function useGeolocation() {
   }, [apply, fail]);
 
   const startWatch = useCallback(() => {
+    if (!hasLocationConsent()) { askConsent(); return; }
     if (!('geolocation' in navigator)) return;
     if (watchId.current !== null) return;
     watchId.current = navigator.geolocation.watchPosition(apply, fail, { enableHighAccuracy: true, timeout: 20000, maximumAge: 3000 });
@@ -51,7 +56,7 @@ export function useGeolocation() {
   }, []);
 
   useEffect(() => () => stopWatch(), [stopWatch]);
-  useEffect(() => { requestOnce(); }, [requestOnce]);
+  useEffect(() => { if (hasLocationConsent()) requestOnce(); }, [requestOnce]);
 
   return { ...state, requestOnce, startWatch, stopWatch, watching: watchId.current !== null };
 }
