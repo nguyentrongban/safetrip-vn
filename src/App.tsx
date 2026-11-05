@@ -1,10 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, BookOpen, House, MapPin, Satellite, Search, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, BookOpen, Clock3, House, Loader2, MapPin, Satellite, Search, ShieldCheck, TriangleAlert } from 'lucide-react';
 import HomeTab from './components/HomeTab';
 import SearchTab from './components/SearchTab';
 import ConsentSheet from './components/ConsentSheet';
 import { CONSENT_EVENT, clearConsent, deferConsent, ensureConsentLogged, getConsent, hasLocationConsent, saveConsent, type ConsentRecord } from './utils/consent';
+import { PUSH_WORKER_URL } from './utils/push';
 import LiveUpdateBanner from './components/LiveUpdateBanner';
 import { useGeolocation } from './hooks/useGeolocation';
 import { useAlarm } from './hooks/useAlarm';
@@ -34,6 +35,49 @@ const TABS: { id: TabId; label: string; Icon: typeof House }[] = [
 
 const SHELL = 'max-w-md md:max-w-2xl lg:max-w-4xl mx-auto';
 
+/** Landing for support-confirmation email links (/?verify=<token>).
+ *  Confirms against the Worker behind the scenes and scrubs the token
+ *  from the address bar right away. */
+function VerifyLanding({ token, onDone }: { token: string; onDone: () => void }) {
+  const [state, setState] = useState<'doing' | 'ok' | 'expired' | 'invalid'>('doing');
+  useEffect(() => {
+    window.history.replaceState(null, '', window.location.pathname);
+    let live = true;
+    fetch(`${PUSH_WORKER_URL.replace(/\/+$/, '')}/verify-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    }).then(async (r) => {
+      if (!live) return;
+      if (r.ok) setState('ok');
+      else {
+        const j = await r.json().catch(() => null) as { error?: string } | null;
+        setState(j?.error === 'expired' ? 'expired' : 'invalid');
+      }
+    }).catch(() => { if (live) setState('invalid'); });
+    return () => { live = false; };
+  }, [token]);
+  const view = {
+    doing: { t: 'Đang xác nhận…', b: 'Đợi một chút, hệ thống đang kiểm tra liên kết của bạn.' },
+    ok: { t: 'Đã xác nhận!', b: 'Yêu cầu hỗ trợ của bạn đã được gửi. Ban quản trị SafeTrip VN sẽ trả lời qua email của bạn.' },
+    expired: { t: 'Liên kết đã hết hạn', b: 'Liên kết xác nhận chỉ có hiệu lực 15 phút. Hãy mở ứng dụng, gửi lại yêu cầu để nhận liên kết mới.' },
+    invalid: { t: 'Liên kết không hợp lệ', b: 'Liên kết này không đúng, hoặc đã được dùng rồi. Nếu bạn chưa từng xác nhận, hãy gửi lại yêu cầu trong ứng dụng.' },
+  }[state];
+  const Icon = state === 'ok' ? ShieldCheck : state === 'expired' ? Clock3 : state === 'invalid' ? TriangleAlert : Loader2;
+  const iconColor = state === 'ok' ? 'text-emerald-400' : state === 'expired' ? 'text-amber-300' : state === 'invalid' ? 'text-red-400' : 'text-slate-300';
+  return (
+    <div className="bg-panel rounded-[28px] px-5 py-9 border border-white/10 text-center">
+      <img src="/logo-shield.png" alt="SafeTrip VN" className="h-14 w-14 object-contain mx-auto block" />
+      <Icon className={`w-16 h-16 mx-auto mt-6 ${iconColor} ${state === 'doing' ? 'animate-spin' : ''}`} strokeWidth={1.6} />
+      <p className="text-white font-black text-xl mt-4">{view.t}</p>
+      <p className="text-sm text-slate-400 mt-2 leading-relaxed max-w-xs mx-auto">{view.b}</p>
+      {state !== 'doing' && (
+        <button onClick={onDone} className="mt-7 bg-white text-black font-extrabold px-9 py-3.5 rounded-full text-[15px]">Vào ứng dụng</button>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState<TabId>(() => {
     // Deep link from the DMS push notification (push-sw.js opens
@@ -58,6 +102,9 @@ export default function App() {
   const [installed, setInstalled] = useState(false);
   const [booted, setBooted] = useState(false);
   const [liveViewCode, setLiveViewCode] = useState<string | null>(() => new URLSearchParams(window.location.search).get('live'));
+  // Support-confirmation links land HERE (/?verify=<token>) since
+  // v1.69, so users never see the push Worker's own domain.
+  const [verifyToken, setVerifyToken] = useState<string | null>(() => new URLSearchParams(window.location.search).get('verify'));
   const [liveCfg, setLiveCfg] = useState<LiveConfig | null>(() => {
     // A ?live= link's station (&c=) is used for THIS viewing session only and
     // is never saved (v1.17): the default is always the shared station, and
@@ -159,7 +206,7 @@ export default function App() {
   useEffect(() => {
     if (bootedRef.done) return;
     bootedRef.done = true;
-    if (!liveViewCode) {
+    if (!liveViewCode && !verifyToken) {
       if (hasLocationConsent()) geoRequestOnce();
       else setSheetOpen(true); // Owner's rule (2026-11-05 21:38): skipping never silences the ask — every page load shows the sheet again until the user agrees to share location.
     }
@@ -245,7 +292,9 @@ export default function App() {
       )}
 
       <main className={`${SHELL} px-4 pt-4 pb-28`}>
-        {liveViewCode ? (
+        {verifyToken ? (
+          <VerifyLanding token={verifyToken} onDone={() => setVerifyToken(null)} />
+        ) : liveViewCode ? (
           liveCfg ? (
             <Suspense fallback={<TabFallback />}><LiveView code={liveViewCode.toUpperCase()} cfg={liveCfg} onClose={closeLive} /></Suspense>
           ) : (
