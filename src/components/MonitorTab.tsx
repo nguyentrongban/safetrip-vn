@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Flag, Play, ShieldCheck, Square, TriangleAlert } from 'lucide-react';
 import MapView from './MapView';
+import ZoneDetailSheet from './ZoneDetailSheet';
 import LivePanel from './LivePanel';
 import PushNotifyCard from './PushNotifyCard';
 import DangerZoneCard from './DangerZoneCard';
@@ -16,7 +17,7 @@ import { fetchRoute, type RouteResult } from '../utils/routing';
 import { loadTrip, saveTrip } from '../utils/storage';
 import { ensureLiveSession, loadLiveSessionCode } from '../utils/live';
 import { isPushConfigured, syncDmsDeadline } from '../utils/push';
-import { ZONE_TYPE_META, buildCommuneZones, communeContains, fetchCommuneGeometry, fetchDangerReports, loadCachedReports, type CommuneZone, type DangerReport, type ZoneGeometry } from '../utils/dangerZones';
+import { ZONE_TYPE_META, buildCommuneZones, communeContains, fetchCommuneGeometry, fetchDangerReports, loadCachedReports, type CommuneZone, type DangerReport, type DangerZoneType, type ZoneGeometry } from '../utils/dangerZones';
 import type { PlacePoint, TripConfig } from '../types';
 
 interface Props {
@@ -56,6 +57,7 @@ type DevAlarm = { kind: 'off' | 'wrong'; offKm: number } | null;
 export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpenLive, alarming }: Props) {
   const [startPick, setStartPick] = useState<PlacePoint | null>(null);
   const [destPick, setDestPick] = useState<PlacePoint | null>(null);
+  const [zoneDetail, setZoneDetail] = useState<{ zone: CommuneZone; type: DangerZoneType } | null>(null);
   const [routeInfo, setRouteInfo] = useState<RouteResult | null>(null);
   const [routeBusy, setRouteBusy] = useState(false);
   const [routeFailed, setRouteFailed] = useState(false);
@@ -335,9 +337,14 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
   return (
     <>
     <LiveUpdateBanner visible={!!live.prompt} onSend={live.sendUpdate} onDismiss={live.dismiss} />
+    <AnimatePresence>
+      {zoneDetail && (
+        <ZoneDetailSheet zone={zoneDetail.zone} type={zoneDetail.type} onClose={() => setZoneDetail(null)} />
+      )}
+    </AnimatePresence>
     <div className="grid gap-4 lg:grid-cols-[1fr_340px] items-start">
       <div className="space-y-3 min-w-0">
-        <MapView lat={geo.lat} lng={geo.lng} route={mapRoute ?? null} dest={mapDest} followUser={followUser} zones={zones} />
+        <MapView lat={geo.lat} lng={geo.lng} route={mapRoute ?? null} dest={mapDest} followUser={followUser} zones={zones} onZoneGroup={(zone, type) => setZoneDetail({ zone, type })} />
         {nearest && nearestLine && (
           <div className={`grid grid-cols-2 gap-2 ${nearBorder ? '' : ''}`}>
             <div className={`rounded-3xl p-3.5 border text-center ${nearLine ? 'bg-red-500/15 border-red-500' : 'bg-panel border-white/10'}`}>

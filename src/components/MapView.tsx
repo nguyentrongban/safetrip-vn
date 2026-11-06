@@ -2,7 +2,7 @@ import LeafletMapView from './LeafletMapView';
 import MapboxMapView from './MapboxMapView';
 import { useMapEngine } from '../hooks/useMapEngine';
 import type { PlacePoint } from '../types';
-import type { CommuneZone } from '../utils/dangerZones';
+import type { CommuneZone, DangerZoneType } from '../utils/dangerZones';
 
 interface Props {
   lat: number | null;
@@ -16,6 +16,8 @@ interface Props {
   followUser?: boolean;
   /** Approved danger communes to tint by their real boundary (v1.42). */
   zones?: CommuneZone[];
+  /** A grouped zone-popup row was tapped (detail sheet opens above). */
+  onZoneGroup?: (zone: CommuneZone, type: DangerZoneType) => void;
 }
 
 /**
@@ -25,10 +27,10 @@ interface Props {
  * at the same view — and stays there for the rest of the session.
  * With no token configured this renders exactly the v1.24 Leaflet map.
  */
-export default function MapView({ lat, lng, route = null, dest = null, followUser = true, zones = [] }: Props) {
+export default function MapView({ lat, lng, route = null, dest = null, followUser = true, zones = [], onZoneGroup }: Props) {
   const { engine, savedView, fail } = useMapEngine();
   if (engine === 'mapbox') {
-    return <MapboxMapView lat={lat} lng={lng} onFail={fail} route={route} dest={dest} followUser={followUser} zones={zones} />;
+    return <MapboxMapView lat={lat} lng={lng} onFail={fail} route={route} dest={dest} followUser={followUser} zones={zones} onZoneGroup={onZoneGroup} />;
   }
-  return <LeafletMapView lat={lat} lng={lng} initialView={savedView} route={route} dest={dest} followUser={followUser} zones={zones} />;
+  return <LeafletMapView lat={lat} lng={lng} initialView={savedView} route={route} dest={dest} followUser={followUser} zones={zones} onZoneGroup={onZoneGroup} />;
 }

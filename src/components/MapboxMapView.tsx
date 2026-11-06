@@ -14,7 +14,7 @@ import {
   type MapboxGL,
 } from '../utils/mapbox';
 import type { SavedView } from '../hooks/useMapEngine';
-import { FALLBACK_RADIUS_M, ZONE_TYPE_META, formatZoneDate, type CommuneZone, type ZoneGeometry } from '../utils/dangerZones';
+import { FALLBACK_RADIUS_M, ZONE_TYPE_META, groupZoneReports, type CommuneZone, type DangerZoneType, type ZoneGeometry } from '../utils/dangerZones';
 
 interface Props {
   lat: number | null;
@@ -29,6 +29,9 @@ interface Props {
   followUser?: boolean;
   /** Approved danger communes to tint by their real boundary (v1.42). */
   zones?: CommuneZone[];
+  /** A grouped popup row was tapped — open the detail sheet for that
+   *  commune + report type (owner 2026-11-06). */
+  onZoneGroup?: (zone: CommuneZone, type: DangerZoneType) => void;
 }
 
 const DEST_HTML = '<div style="width:30px;height:30px;border-radius:50%;background:#fff;border:2.5px solid #10B981;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 8px rgba(15,23,42,.35)">🏁</div>';
@@ -71,14 +74,22 @@ function escapeHtml(s: string): string {
 }
 
 function zonePopupHtml(z: CommuneZone): string {
-  const reports = z.reports.map((r) =>
-    `<b style="color:${ZONE_TYPE_META[r.type].color}">${escapeHtml(ZONE_TYPE_META[r.type].label)}</b><br/>${escapeHtml(r.description)}<br/><i>Cộng đồng báo · Cập nhật ${escapeHtml(formatZoneDate(r.updatedAt))} · ${r.confirmCount} lượt xác nhận</i>`,
-  ).join('<br/><br/>');
-  const fallback = z.geometry ? '' : '<br/><i>Ranh giới xã/phường này chưa có dữ liệu bản đồ — vòng tròn là vị trí báo cáo gần đúng.</i>';
-  return `<b>⚠️ ${escapeHtml(z.wardName)}</b> — ${escapeHtml(z.provinceName)}<br/>${reports}${fallback}<br/><i>Thông tin do cộng đồng báo, chưa được kiểm chứng — chỉ để tham khảo phòng tránh.</i>`;
+  // Grouped by type (owner 2026-11-06): ONE compact tappable row per
+  // report type with the totals; the per-report detail (description,
+  // date, confirm button) lives in the React sheet behind the row.
+  const rows = groupZoneReports(z).map((g) => {
+    const meta = ZONE_TYPE_META[g.type];
+    return `<button type="button" class="st-zone-row" data-zkey="${escapeHtml(z.key)}" data-ztype="${g.type}"><span style="display:block;font-weight:800;color:${meta.color}">${escapeHtml(meta.label)}</span><span style="display:block;font-size:12px;color:#CBD5E1;margin-top:1px">${g.reports.length} báo cáo · ${g.totalConfirms} lượt xác nhận · Xem chi tiết ›</span></button>`;
+  }).join('');
+  const fallback = z.geometry ? '' : '<div style="font-size:11px;color:#94A3B8;margin-top:6px"><i>Ranh giới xã/phường này chưa có dữ liệu bản đồ — vòng tròn là vị trí báo cáo gần đúng.</i></div>';
+  return `<div style="max-height:36vh;overflow-y:auto"><div style="font-size:14px"><b>⚠️ ${escapeHtml(z.wardName)}</b> — ${escapeHtml(z.provinceName)}</div><div style="margin-top:2px">${rows}</div>${fallback}<div style="font-size:11px;color:#94A3B8;margin-top:6px"><i>Tin cộng đồng, chưa kiểm chứng — chỉ để tham khảo phòng tránh.</i></div></div>`;
 }
 
-function upsertZonesLayer(map: MapboxMap, gl: MapboxGL, zones: CommuneZone[]): void {
+interface ZoneClickBridge {
+  current: { zones: CommuneZone[]; onGroup?: (zone: CommuneZone, type: DangerZoneType) => void };
+}
+
+function upsertZonesLayer(map: MapboxMap, gl: MapboxGL, zones: CommuneZone[], zoneClick: ZoneClickBridge): void {
   const features: { type: 'Feature'; properties: { color: string; body: string }; geometry: ZoneGeometry | { type: 'Polygon'; coordinates: [number, number][][] } }[] = [];
   for (const z of zones) {
     if (z.geometry) {
@@ -110,10 +121,22 @@ function upsertZonesLayer(map: MapboxMap, gl: MapboxGL, zones: CommuneZone[]): v
   map.on('click', 'safetrip-danger-zones-fill', (e) => {
     const p = e.features?.[0]?.properties as { body?: string } | undefined;
     if (!p?.body) return;
-    new gl.Popup({ offset: 12, maxWidth: '300px' })
+    const popup = new gl.Popup({ offset: 12, maxWidth: '320px' })
       .setLngLat(e.lngLat)
       .setHTML(p.body)
       .addTo(map);
+    // Grouped rows are real <button>s in the popup HTML — bridge their
+    // taps back into React (detail sheet) via the live zones ref.
+    popup.getElement()?.addEventListener('click', (ev) => {
+      const btn = (ev.target as HTMLElement).closest('[data-ztype]') as HTMLElement | null;
+      if (!btn) return;
+      const zone = zoneClick.current.zones.find((zz) => zz.key === btn.getAttribute('data-zkey'));
+      const type = btn.getAttribute('data-ztype') as DangerZoneType | null;
+      if (zone && type) {
+        popup.remove();
+        zoneClick.current.onGroup?.(zone, type);
+      }
+    });
   });
   map.on('mouseenter', 'safetrip-danger-zones-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'safetrip-danger-zones-fill', () => { map.getCanvas().style.cursor = ''; });
@@ -202,7 +225,7 @@ function addGateMarkers(map: MapboxMap, gl: MapboxGL): void {
  * Any engine failure is reported through onFail — the wrapper then swaps in
  * the Leaflet map at the same view, silently.
  */
-export default function MapboxMapView({ lat, lng, onFail, route = null, dest = null, followUser = true, zones = [] }: Props) {
+export default function MapboxMapView({ lat, lng, onFail, route = null, dest = null, followUser = true, zones = [], onZoneGroup }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const glRef = useRef<MapboxGL | null>(null);
@@ -214,6 +237,8 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
   destRef.current = dest;
   const zonesRef = useRef(zones);
   zonesRef.current = zones;
+  const zoneClickRef: ZoneClickBridge = useRef({ zones, onGroup: onZoneGroup });
+  zoneClickRef.current = { zones, onGroup: onZoneGroup };
   const followUserRef = useRef(followUser);
   followUserRef.current = followUser;
   const bootIdRef = useRef(0);
@@ -290,7 +315,7 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
         addCustomLayers(map, gl);
         addGateMarkers(map, gl);
         upsertRouteLayer(map, routeRef.current);
-        upsertZonesLayer(map, gl, zonesRef.current);
+        upsertZonesLayer(map, gl, zonesRef.current, zoneClickRef);
         syncDestMarker();
         if (routeRef.current && routeRef.current.length > 1 && !followUserRef.current) {
           fitKeyRef.current = `${routeRef.current.length}|${routeRef.current[0][0]},${routeRef.current[0][1]}`;
@@ -371,7 +396,7 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
     const map = mapRef.current;
     const gl = glRef.current;
     if (!map || !gl || failedRef.current || !loadedRef.current) return;
-    try { upsertZonesLayer(map, gl, zones); } catch { /* style mid-swap */ }
+    try { upsertZonesLayer(map, gl, zones, zoneClickRef); } catch { /* style mid-swap */ }
   }, [zones]);
 
   /* ---------------- frame the whole route (setup preview) ---------- */
@@ -410,13 +435,13 @@ export default function MapboxMapView({ lat, lng, onFail, route = null, dest = n
       applyBrandPaint(map, { satellite: m === 'satellite' });
       addCustomLayers(map, gl);
       upsertRouteLayer(map, routeRef.current);
-      upsertZonesLayer(map, gl, zonesRef.current);
+      upsertZonesLayer(map, gl, zonesRef.current, zoneClickRef);
     });
   };
 
   return (
     <div className="relative rounded-3xl overflow-hidden border border-white/10 h-[340px] md:h-[440px] lg:h-[560px]">
-      <style>{'@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,.5)}70%{box-shadow:0 0 0 14px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}} .mapboxgl-map{font-family:inherit} .mapboxgl-popup-content{background:#1E293B;color:#F1F5F9;border-radius:12px;font-size:13px} .mapboxgl-popup-tip{border-top-color:#1E293B!important;border-bottom-color:#1E293B!important}'}</style>
+      <style>{'@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,.5)}70%{box-shadow:0 0 0 14px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}} .mapboxgl-map{font-family:inherit} .mapboxgl-popup-content{background:#1E293B;color:#F1F5F9;border-radius:12px;font-size:13px} .mapboxgl-popup-tip{border-top-color:#1E293B!important;border-bottom-color:#1E293B!important} .st-zone-row{display:block;width:100%;text-align:left;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 10px;margin-top:6px;cursor:pointer;font:inherit;color:inherit}'}</style>
       <div ref={containerRef} className="w-full h-full" style={{ background: '#EAF6FD' }} />
       <div className="absolute top-2 right-2 z-[500] flex rounded-xl overflow-hidden border border-slate-600 shadow-lg text-[11px] font-bold">
         <button onClick={() => switchMode('street')} className={`px-2.5 py-1.5 ${mode === 'street' ? 'bg-blue-600 text-white' : 'bg-black/30/90 text-slate-300'}`}>🗺️ Đường</button>

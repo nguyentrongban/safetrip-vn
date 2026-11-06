@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { Circle, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { BORDER_LINES, BORDER_POINTS, BORDER_RADIUS_KM, ISLAND_GROUPS, LANDMARKS, SEA_LABEL } from '../utils/data';
-import { FALLBACK_RADIUS_M, ZONE_TYPE_META, confirmDangerZone, formatZoneDate, type CommuneZone, type ZoneGeometry } from '../utils/dangerZones';
+import { FALLBACK_RADIUS_M, ZONE_TYPE_META, groupZoneReports, type CommuneZone, type DangerZoneType, type ZoneGeometry } from '../utils/dangerZones';
 
 /** GeoJSON [lng, lat] rings → Leaflet [lat, lng] positions. */
 function geometryToLeaflet(geom: ZoneGeometry): [number, number][][] | [number, number][][][] {
@@ -14,28 +14,30 @@ function geometryToLeaflet(geom: ZoneGeometry): [number, number][][] | [number, 
 /** Popup body shared by the real-boundary polygon and the fallback
  * circle: every approved report for the commune, each with its source,
  * freshness date and a re-confirm button. */
-function ZonePopupContent({ zone }: { zone: CommuneZone }) {
+function ZonePopupContent({ zone, onSelect }: { zone: CommuneZone; onSelect?: (type: DangerZoneType) => void }) {
+  // Grouped by type (owner 2026-11-06): ONE compact tappable row per
+  // report type with the totals; the per-report detail (description,
+  // date, confirm button) lives in the React sheet behind the row —
+  // same shape as the Mapbox popup.
+  const closePopup = () => {
+    document.querySelectorAll('.leaflet-popup-close-button').forEach((b) => (b as HTMLElement).click());
+  };
   return (
-    <>
+    <div style={{ maxHeight: 250, overflowY: 'auto', minWidth: 215 }}>
       <b>⚠️ {zone.wardName}</b> — {zone.provinceName}<br />
-      {zone.reports.map((r) => (
-        <span key={r.id}>
-          <b style={{ color: ZONE_TYPE_META[r.type].color }}>{ZONE_TYPE_META[r.type].label}</b><br />
-          {r.description}<br />
-          <i>Cộng đồng báo · Cập nhật {formatZoneDate(r.updatedAt)} · {r.confirmCount} lượt xác nhận</i>
-          <br />
-          <button
-            onClick={() => void confirmDangerZone(r.id)}
-            style={{ margin: '4px 0 8px', background: '#0F172A', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 10px', fontWeight: 700, cursor: 'pointer' }}
-          >
-            ✓ Xác nhận báo cáo này
-          </button>
-          <br />
-        </span>
+      {groupZoneReports(zone).map((g) => (
+        <button
+          key={g.type}
+          onClick={() => { onSelect?.(g.type); closePopup(); }}
+          style={{ display: 'block', width: '100%', textAlign: 'left', background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 10, padding: '8px 10px', marginTop: 6, cursor: 'pointer', font: 'inherit' }}
+        >
+          <b style={{ color: ZONE_TYPE_META[g.type].color }}>{ZONE_TYPE_META[g.type].label}</b><br />
+          <span style={{ fontSize: 12, color: '#475569' }}>{g.reports.length} báo cáo · {g.totalConfirms} lượt xác nhận · Xem chi tiết ›</span>
+        </button>
       ))}
-      {!zone.geometry && <i>Ranh giới xã/phường này chưa có dữ liệu bản đồ — vòng tròn là vị trí báo cáo gần đúng.</i>}
-      <br /><i>Thông tin do cộng đồng báo, chưa được kiểm chứng — chỉ để tham khảo phòng tránh.</i>
-    </>
+      {!zone.geometry && <><br /><i>Ranh giới xã/phường này chưa có dữ liệu bản đồ — vòng tròn là vị trí báo cáo gần đúng.</i></>}
+      <br /><i>Tin cộng đồng, chưa kiểm chứng — chỉ để tham khảo phòng tránh.</i>
+    </div>
   );
 }
 
@@ -147,6 +149,9 @@ interface Props {
   followUser?: boolean;
   /** Approved danger communes to tint by their real boundary (v1.42). */
   zones?: CommuneZone[];
+  /** A grouped popup row was tapped — open the detail sheet for that
+   *  commune + report type (owner 2026-11-06). */
+  onZoneGroup?: (zone: CommuneZone, type: DangerZoneType) => void;
 }
 
 const destIcon = L.divIcon({
@@ -156,7 +161,7 @@ const destIcon = L.divIcon({
 });
 
 /** The original Leaflet/Esri map — kept intact as the fallback renderer. */
-export default function LeafletMapView({ lat, lng, initialView, route, dest, followUser = true, zones = [] }: Props) {
+export default function LeafletMapView({ lat, lng, initialView, route, dest, followUser = true, zones = [], onZoneGroup }: Props) {
   const center: [number, number] = initialView?.center ?? (lat !== null && lng !== null ? [lat, lng] : [14.0583, 108.2772]);
   const [mapInst, setMapInst] = useState<L.Map | null>(null);
   const [mode, setMode] = useState<'street' | 'satellite'>('street');
@@ -241,7 +246,7 @@ export default function LeafletMapView({ lat, lng, initialView, route, dest, fol
                 positions={geometryToLeaflet(z.geometry) as [number, number][][]}
                 pathOptions={{ color: meta.color, fillColor: meta.color, fillOpacity: 0.16, weight: 2 }}
               >
-                <Popup><ZonePopupContent zone={z} /></Popup>
+                <Popup maxWidth={300}><ZonePopupContent zone={z} onSelect={onZoneGroup ? (t) => onZoneGroup(z, t) : undefined} /></Popup>
               </Polygon>
             );
           }
@@ -253,7 +258,7 @@ export default function LeafletMapView({ lat, lng, initialView, route, dest, fol
                 radius={FALLBACK_RADIUS_M}
                 pathOptions={{ color: meta.color, fillColor: meta.color, fillOpacity: 0.12, weight: 2, dashArray: '6 6' }}
               >
-                <Popup><ZonePopupContent zone={z} /></Popup>
+                <Popup maxWidth={300}><ZonePopupContent zone={z} onSelect={onZoneGroup ? (t) => onZoneGroup(z, t) : undefined} /></Popup>
               </Circle>
             );
           }
