@@ -8,9 +8,11 @@ export function useAlarm() {
   const [lastTrigger, setLastTrigger] = useState('');
   const openedRef = useRef(false);
 
-  const triggerSOS = useCallback((reason: string, lat: number | null, lng: number | null, openSms = true) => {
+  const triggerSOS = useCallback((reason: string, lat: number | null, lng: number | null, openSms = true, silent = false) => {
     setAlarming(true); setLastTrigger(reason);
-    startSiren(); vibrate([500, 200, 500, 200, 500]);
+    // Silent mode (voice-triggered SOS, v1.79): no siren, no vibration —
+    // a victim who activated by voice must not be betrayed by the phone.
+    if (!silent) { startSiren(); vibrate([500, 200, 500, 200, 500]); }
     const cfg = loadSOS();
     const phone = cfg.phone1 || cfg.phone2;
     if (openSms && phone && !openedRef.current) {
