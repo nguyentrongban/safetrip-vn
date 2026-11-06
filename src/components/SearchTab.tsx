@@ -4,6 +4,7 @@ import { Ban, Camera, Car, ChevronDown, CircleAlert, CircleCheck, Flag, MapPin, 
 import { CHECKLIST_QUESTIONS, PROVINCES } from '../utils/data';
 import { normalizePhone, normalizePlate } from '../utils/geo';
 import { loadReports, saveReports } from '../utils/storage';
+import { vnDateTime } from '../utils/vntime';
 import { cloudinaryReady, cloudinaryThumb, compressImage, isValidVnPhone, normalizeVnPhone, searchCommunity, submitCommunityReport, uploadEvidence, validateImageFile } from '../utils/fraudDb';
 import { fetchProvinces, fetchWards, type VnProvince, type VnWard } from '../utils/vnAdmin';
 import type { CommunityFraudEntry, PersonalReport } from '../types';
@@ -353,7 +354,7 @@ export default function SearchTab() {
                 <div className="min-w-0 flex-1">
                   <p className="text-white font-bold text-sm">{r.plate} — {r.company}</p>
                   <p className="text-xs text-slate-300 line-clamp-2">{r.description}</p>
-                  <p className="text-[10px] text-slate-500">{new Date(r.createdAt).toLocaleString('vi-VN')}</p>
+                  <p className="text-[10px] text-slate-500">{vnDateTime(r.createdAt)}</p>
                 </div>
                 <button onClick={() => removeReport(r.id)} className="text-slate-500 hover:text-red-400 shrink-0" aria-label="Xóa báo cáo"><Trash2 className="w-4 h-4" /></button>
               </div>

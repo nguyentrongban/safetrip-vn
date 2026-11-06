@@ -18,6 +18,7 @@ import { loadTrip, saveTrip } from '../utils/storage';
 import { ensureLiveSession, loadLiveSessionCode } from '../utils/live';
 import { isPushConfigured, syncDmsDeadline } from '../utils/push';
 import { ZONE_TYPE_META, buildCommuneZones, communeContains, fetchCommuneGeometry, fetchDangerReports, loadCachedReports, type CommuneZone, type DangerReport, type DangerZoneType, type ZoneGeometry } from '../utils/dangerZones';
+import { vnTime } from '../utils/vntime';
 import type { PlacePoint, TripConfig } from '../types';
 
 interface Props {
@@ -48,8 +49,7 @@ function fmtDuration(min: number): string {
 }
 
 function fmtClock(ts: number): string {
-  const d = new Date(ts);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return vnTime(ts);
 }
 
 type DevAlarm = { kind: 'off' | 'wrong'; offKm: number } | null;

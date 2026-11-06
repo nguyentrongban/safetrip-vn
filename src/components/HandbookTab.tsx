@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Baby, ChevronDown, ChevronRight, FileText, HeartPulse, KeyRound, MapPin, Scale, ScrollText, Siren } from 'lucide-react';
 import { GUIDE_ARTICLES } from '../utils/data';
 import { POLICY_VERSION, type ConsentRecord } from '../utils/consent';
+import { vnDate } from '../utils/vntime';
 
 const HOTLINES = [
   { number: '113', label: 'Công An', desc: 'Bắt cóc, khống chế, tội phạm', color: 'bg-blue-600', Icon: Siren },
@@ -21,7 +22,7 @@ export default function HandbookTab({ consentRec, onOpenLegal, onAgreeConsent, o
   const [open, setOpen] = useState<string | null>(null);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const consentGranted = !!consentRec && consentRec.decision === 'granted' && consentRec.policy === POLICY_VERSION;
-  const consentDate = consentRec?.at ? new Date(consentRec.at).toLocaleDateString('vi-VN') : '';
+  const consentDate = consentRec?.at ? vnDate(consentRec.at) : '';
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">

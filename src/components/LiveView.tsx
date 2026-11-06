@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, Polyline, TileLayer, useMap } from 'react-leaflet';
 import { ArrowLeft, Gauge, RefreshCw } from 'lucide-react';
 import { fetchPosition, type LiveConfig, type LiveRow } from '../utils/live';
+import { vnTime } from '../utils/vntime';
 import MapboxLiveMap from './MapboxLiveMap';
 import { useMapEngine, type SavedView } from '../hooks/useMapEngine';
 
@@ -104,7 +105,7 @@ export default function LiveView({ code, cfg, onClose }: Props) {
             {stale && row.active && (
               <div className="bg-red-600/15 border-2 border-red-500 rounded-2xl p-3.5 space-y-1.5">
                 <p className="text-lg text-red-400 font-black leading-snug">⚠️ THEO DÕI DỪNG ĐỘT NGỘT</p>
-                <p className="text-sm text-red-200">Người gửi <b>không bấm dừng</b> mà tín hiệu tự mất lúc {new Date(row.updated_at).toLocaleTimeString('vi-VN')}. Có thể máy hết pin, mất sóng — <b>hoặc đã bị phát hiện và bị bắt dừng theo dõi</b>.</p>
+                <p className="text-sm text-red-200">Người gửi <b>không bấm dừng</b> mà tín hiệu tự mất lúc {vnTime(row.updated_at)}. Có thể máy hết pin, mất sóng — <b>hoặc đã bị phát hiện và bị bắt dừng theo dõi</b>.</p>
                 <p className="text-sm text-white font-bold">Hãy gọi cho người gửi ngay. Không liên lạc được thì gọi công an:</p>
                 <a href="tel:113" className="inline-block bg-red-600 text-white font-black px-5 py-2.5 rounded-full text-base">📞 GỌI 113</a>
               </div>
