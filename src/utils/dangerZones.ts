@@ -1,6 +1,7 @@
 import { PUSH_WORKER_URL } from './push';
 import { getDeviceCode } from './consent';
 import { haversineKm } from './geo';
+import { vnDate } from './vntime';
 
 /**
  * Community danger areas — COMMUNE edition (v1.42; storage moved to the
@@ -354,9 +355,8 @@ export function namesMatch(a: string, b: string): boolean {
   return na !== '' && (na === nb || na.includes(nb) || nb.includes(na));
 }
 
-/** dd/mm/yyyy for freshness labels ("Cập nhật 03/11/2026"). */
+/** dd/mm/yyyy for freshness labels ("Cập nhật 03/11/2026") — always
+ * the VIETNAM calendar day, whatever timezone the phone is in. */
 export function formatZoneDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  return vnDate(iso);
 }
