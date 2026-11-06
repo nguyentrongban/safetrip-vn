@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, BookOpen, Clock3, House, Loader2, MapPin, Satellite, Search, ShieldCheck, TriangleAlert } from 'lucide-react';
 import HomeTab from './components/HomeTab';
@@ -12,7 +12,7 @@ import { useAlarm } from './hooks/useAlarm';
 import { useLiveSmsUpdates } from './hooks/useLiveSmsUpdates';
 import { useLiveTracking } from './hooks/useLiveTracking';
 import { decodeConfigParam, ensureLiveSession, loadLiveConfig, type LiveConfig } from './utils/live';
-import { loadTrip } from './utils/storage';
+import { buildSmsUrl, buildSosBody, loadSOS, loadTrip } from './utils/storage';
 import { APP_VERSION } from './version';
 import type { TabId } from './types';
 
@@ -82,6 +82,9 @@ export default function App() {
   const [tab, setTab] = useState<TabId>(() => {
     // Deep link from the DMS push notification (push-sw.js opens
     // /?tab=monitor): land straight on the check-in tab.
+    // Voice-assistant emergency entry (/?sos=1, v1.79) always lands on
+    // the SOS tab, whatever tab was open last.
+    if (new URLSearchParams(window.location.search).get('sos') === '1') return 'home';
     const wanted = new URLSearchParams(window.location.search).get('tab');
     if (TABS.some((x) => x.id === wanted)) return wanted as TabId;
     // A reload (PWA update, browser memory cleanup) must not throw the
@@ -102,6 +105,9 @@ export default function App() {
   const [installed, setInstalled] = useState(false);
   const [booted, setBooted] = useState(false);
   const [liveViewCode, setLiveViewCode] = useState<string | null>(() => new URLSearchParams(window.location.search).get('live'));
+  // Voice-assistant emergency entry (v1.79): a Siri Shortcut opens
+  // /?sos=1 and the app fires the SOS itself — silently (see useAlarm).
+  const [sosAuto] = useState(() => new URLSearchParams(window.location.search).get('sos') === '1');
   // Support-confirmation links land HERE (/?verify=<token>) since
   // v1.69, so users never see the push Worker's own domain.
   const [verifyToken, setVerifyToken] = useState<string | null>(() => new URLSearchParams(window.location.search).get('verify'));
@@ -229,6 +235,45 @@ export default function App() {
     alarm.triggerSOS("Dead Man's Switch: quá 3 phút không check-in", geo.lat, geo.lng);
   }, [alarm, geo.lat, geo.lng]);
 
+  // Scrub ?sos= from the address bar so a later reload doesn't re-fire.
+  useEffect(() => {
+    if (!sosAuto) return;
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('sos');
+      window.history.replaceState(null, '', u.toString());
+    } catch { /* ignore */ }
+  }, [sosAuto]);
+
+  // Voice entry, fire once: as soon as a real position exists — or after
+  // ~6s of waiting for one (relatives still get the alert + live link,
+  // and tracking keeps refining the position afterwards). Waits while
+  // the consent sheet is up: no permission, no location SOS.
+  const sosAutoFiredRef = useRef(false);
+  useEffect(() => {
+    if (!sosAuto || !booted || sosAutoFiredRef.current) return;
+    if (!hasLocationConsent()) return;
+    const fire = () => {
+      if (sosAutoFiredRef.current) return;
+      sosAutoFiredRef.current = true;
+      ensureLiveSession();
+      alarm.triggerSOS('Kích hoạt bằng giọng nói', geo.lat, geo.lng, true, true);
+    };
+    if (geo.lat !== null && geo.lng !== null) { fire(); return; }
+    const t = window.setTimeout(fire, 6000);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sosAuto, booted, geo.lat, geo.lng, consentRec]);
+
+  // Rescue path when the OS swallowed the automatic SMS-composer open
+  // (iOS can ignore a programmatic sms: navigation without a tap): one
+  // explicit tap from the alarming banner always works.
+  const reopenSms = useCallback(() => {
+    const cfg = loadSOS();
+    const phone = cfg.phone1 || cfg.phone2;
+    if (phone) window.location.href = buildSmsUrl(phone, buildSosBody(cfg, geo.lat, geo.lng));
+  }, [geo.lat, geo.lng]);
+
   useEffect(() => {
     document.body.style.overflow = legal ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -288,6 +333,9 @@ export default function App() {
             <TriangleAlert className="w-6 h-6 shrink-0" />
             <span>ĐANG BÁO ĐỘNG — {alarm.lastTrigger}. Đã mở sẵn tin nhắn gửi người thân.</span>
           </div>
+          <button onClick={reopenSms} className="mt-2 w-full bg-white text-red-700 font-black rounded-2xl py-3.5 text-sm active:scale-[.99] transition">
+            MỞ TIN NHẮN ĐỂ GỬI CHO NGƯỜI THÂN
+          </button>
         </div>
       )}
 
