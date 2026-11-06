@@ -175,6 +175,27 @@ export function buildCommuneZones(reports: DangerReport[]): CommuneZone[] {
   return zones;
 }
 
+export interface ZoneTypeGroup {
+  type: DangerZoneType;
+  reports: DangerReport[];
+  totalConfirms: number;
+}
+
+/** Group one commune's reports BY TYPE (owner 2026-11-06): the map popup
+ * shows ONE compact row per type ("3 báo cáo · 3 lượt xác nhận") and the
+ * per-report detail lives in a sheet behind that row. Groups follow the
+ * severity order; reports inside a group are newest-updated first. */
+export function groupZoneReports(zone: CommuneZone): ZoneTypeGroup[] {
+  return TYPE_SEVERITY
+    .map((type) => {
+      const reports = zone.reports
+        .filter((r) => r.type === type)
+        .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+      return { type, reports, totalConfirms: reports.reduce((s, r) => s + r.confirmCount, 0) };
+    })
+    .filter((g) => g.reports.length > 0);
+}
+
 // ---------------------------------------------------------------------------
 // Commune boundary polygons from OpenStreetMap (Nominatim), cached.
 // ---------------------------------------------------------------------------
