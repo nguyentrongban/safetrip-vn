@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { CircleCheck, X } from 'lucide-react';
 import {
-  ZONE_TYPE_META, confirmDangerZone, formatZoneDate, groupZoneReports,
+  ZONE_TYPE_META, confirmDangerZone, formatZoneDate, groupZoneReports, loadConfirmedZoneIds,
   type CommuneZone, type DangerZoneType,
 } from '../utils/dangerZones';
 
@@ -23,7 +23,7 @@ export default function ZoneDetailSheet({ zone, type, onClose }: Props) {
   const meta = ZONE_TYPE_META[type];
   const group = groupZoneReports(zone).find((g) => g.type === type);
   const reports = group?.reports ?? [];
-  const [confirmed, setConfirmed] = useState<ReadonlySet<string>>(new Set());
+  const [confirmed, setConfirmed] = useState<ReadonlySet<string>>(() => loadConfirmedZoneIds());
 
   const confirm = (id: string) => {
     setConfirmed((prev) => new Set(prev).add(id));
@@ -85,7 +85,7 @@ export default function ZoneDetailSheet({ zone, type, onClose }: Props) {
                   }`}
                 >
                   <CircleCheck size={15} />
-                  {done ? 'Đã xác nhận' : 'Xác nhận báo cáo này'}
+                  {done ? 'Bạn đã xác nhận rồi' : 'Xác nhận báo cáo này'}
                 </button>
               </div>
             );
