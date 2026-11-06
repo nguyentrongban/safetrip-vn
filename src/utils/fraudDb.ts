@@ -148,15 +148,25 @@ interface FraudRow {
   plate: string; plate_display: string; operator_name: string; phone: string;
   scam_type: string; area: string; description: string; image_urls: string[];
   report_count: number; created_at: string;
+  plate_count?: number; phone_count?: number;
 }
 
 /** Search APPROVED community reports. Throws on network/config errors so the UI can fall back to the built-in list. */
-export async function searchCommunity(query: string): Promise<CommunityFraudEntry[]> {
-  const rows = await rpc<FraudRow[]>('fraud_search', { p_query: query });
+export async function searchCommunity(query: string, limit = 10, offset = 0): Promise<CommunityFraudEntry[]> {
+  let rows: FraudRow[];
+  try {
+    rows = await rpc<FraudRow[]>('fraud_search', { p_query: query, p_limit: limit, p_offset: offset });
+  } catch {
+    // Server still runs the pre-v3 function (no paging params): fall
+    // back to the plain call and slice client-side so "Xem thêm"
+    // paging keeps working either way.
+    const all = await rpc<FraudRow[]>('fraud_search', { p_query: query });
+    rows = all.slice(offset, offset + limit);
+  }
   return rows.map((r) => ({
     plate: r.plate, plateDisplay: r.plate_display, operatorName: r.operator_name,
     phone: r.phone, scamType: r.scam_type, area: r.area, description: r.description,
-    imageUrls: r.image_urls || [], reportCount: r.report_count, createdAt: r.created_at,
+    imageUrls: r.image_urls || [], reportCount: r.report_count, plateCount: r.plate_count ?? r.report_count, phoneCount: r.phone_count ?? 0, createdAt: r.created_at,
   }));
 }
 

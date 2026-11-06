@@ -1,4 +1,4 @@
-import type { BlacklistEntry, BorderPoint } from '../types';
+import type { BorderPoint } from '../types';
 
 export const BORDER_RADIUS_KM = 15;
 
@@ -50,18 +50,6 @@ export const LANDMARKS: Landmark[] = [
   { id: 'dinh-cau', name: 'Dinh Cậu · Phú Quốc', lat: 10.2903, lng: 103.9571 },
 ];
 
-export const BLACKLIST_DATABASE: BlacklistEntry[] = [
-  { id: 'b1', plate: '51B-284.71', company: 'Xe khách Hoàng Long (giả mạo)', phone: '0903124771', reason: 'Chở khách vượt biên sang Bavet, thu giữ điện thoại và CCCD của 6 hành khách.', risk: 'CRITICAL', reports: 23, lastSeen: 'Tây Ninh' },
-  { id: 'b2', plate: '67B-091.33', company: 'Nhà xe An Phát (không giấy phép)', phone: '0918091333', reason: 'Không logo, không bến bãi, hẹn đón 2h sáng tại chỗ vắng, ép chuyển xe giữa đường.', risk: 'CRITICAL', reports: 18, lastSeen: 'An Giang' },
-  { id: 'b3', plate: '68B-115.02', company: 'Xe dù Hà Tiên - Phnom Penh', phone: '0977115022', reason: 'Quảng cáo việc làm casino, thu hộ chiếu, đòi tiền chuộc 80 triệu/người.', risk: 'CRITICAL', reports: 31, lastSeen: 'Kiên Giang' },
-  { id: 'b4', plate: '62B-047.88', company: 'Trung chuyển Miền Tây Express (giả)', phone: '0933047880', reason: 'Ép khách uống nước có mùi lạ, khách ngủ li bì tỉnh dậy đã qua biên giới.', risk: 'CRITICAL', reports: 12, lastSeen: 'Long An' },
-  { id: 'b5', plate: '51G-552.19', company: 'Xe hợp đồng Sài Gòn - Mộc Bài', phone: '0909552190', reason: 'Báo giá 200k, giữa đường đòi thêm 3 triệu "phí cửa khẩu".', risk: 'HIGH', reports: 9, lastSeen: 'TP.HCM' },
-  { id: 'b6', plate: '70B-063.45', company: 'Nhà xe Tây Ninh Travel (mạo danh)', phone: '0912063455', reason: 'Dùng tên nhà xe uy tín, xe thật không logo, tài xế thay đổi lộ trình liên tục.', risk: 'HIGH', reports: 7, lastSeen: 'Tây Ninh' },
-  { id: 'b7', plate: '38B-020.17', company: 'Xe Lào không phép', phone: '0988020177', reason: 'Gom khách đi Lao Bảo không vé, không danh sách hành khách.', risk: 'HIGH', reports: 6, lastSeen: 'Quảng Trị' },
-  { id: 'b8', plate: '12B-089.60', company: 'Xe dù Lạng Sơn - Bằng Tường', phone: '0904089601', reason: 'Hứa xuất khẩu lao động không cần giấy tờ, thu trước 50 triệu/người.', risk: 'CRITICAL', reports: 15, lastSeen: 'Lạng Sơn' },
-  { id: 'b9', plate: '14B-233.08', company: 'Xe Móng Cái trá hình', phone: '0936233088', reason: 'Chở khách ra bãi xe vắng gần biên giới rồi chuyển sang xe biển Trung Quốc.', risk: 'HIGH', reports: 8, lastSeen: 'Quảng Ninh' },
-  { id: 'b10', plate: '24B-071.52', company: 'Xe dù Lào Cai - Hà Khẩu', phone: '0915071529', reason: 'Thu giữ CCCD "để làm thủ tục", sau đó không trả, ép ở lại làm việc.', risk: 'HIGH', reports: 11, lastSeen: 'Lào Cai' },
-];
 
 export const PROVINCES: string[] = ['TP.HCM','Hà Nội','An Giang','Tây Ninh','Long An','Kiên Giang','Quảng Trị','Lạng Sơn','Quảng Ninh','Lào Cai','Hà Tĩnh','Đà Nẵng','Cần Thơ','Bình Dương','Đồng Nai','Khác'];
 
