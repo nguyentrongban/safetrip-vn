@@ -245,22 +245,33 @@ export default function App() {
     } catch { /* ignore */ }
   }, [sosAuto]);
 
-  // Voice entry, fire once: as soon as a real position exists — or after
-  // ~6s of waiting for one (relatives still get the alert + live link,
-  // and tracking keeps refining the position afterwards). Waits while
-  // the consent sheet is up: no permission, no location SOS.
+  // Voice entry, fire once, FAST (v1.80): for the first alert, speed
+  // beats precision. Fire with the live fix when one exists; otherwise
+  // with the phone's cached last-known position (the OS returns it
+  // almost instantly); otherwise after a 2s hard cap with whatever is
+  // available. The SMS carries the live-view link and tracking keeps
+  // refining the position afterwards. Waits while the consent sheet is
+  // up: no permission, no location SOS.
   const sosAutoFiredRef = useRef(false);
   useEffect(() => {
     if (!sosAuto || !booted || sosAutoFiredRef.current) return;
     if (!hasLocationConsent()) return;
-    const fire = () => {
+    const fire = (lat: number | null, lng: number | null) => {
       if (sosAutoFiredRef.current) return;
       sosAutoFiredRef.current = true;
       ensureLiveSession();
-      alarm.triggerSOS('Kích hoạt bằng giọng nói', geo.lat, geo.lng, true, true);
+      alarm.triggerSOS('Kích hoạt bằng giọng nói', lat, lng, true, true);
     };
-    if (geo.lat !== null && geo.lng !== null) { fire(); return; }
-    const t = window.setTimeout(fire, 6000);
+    if (geo.lat !== null && geo.lng !== null) { fire(geo.lat, geo.lng); return; }
+    let settled = false;
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (p) => { if (!settled) { settled = true; fire(p.coords.latitude, p.coords.longitude); } },
+        () => { /* no cached fix — the timer below still fires */ },
+        { maximumAge: 300000, timeout: 2000, enableHighAccuracy: false },
+      );
+    } catch { /* geolocation unavailable — timer path */ }
+    const t = window.setTimeout(() => { if (!settled) { settled = true; fire(geo.lat, geo.lng); } }, 2000);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sosAuto, booted, geo.lat, geo.lng, consentRec]);
