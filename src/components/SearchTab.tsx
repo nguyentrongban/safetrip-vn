@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BadgeCheck, Ban, Camera, Car, ChevronDown, CircleAlert, CircleCheck, Flag, MapPin, Phone, Search, ShieldAlert, Trash2, TriangleAlert, X } from 'lucide-react';
-import { BLACKLIST_DATABASE, CHECKLIST_QUESTIONS, PROVINCES } from '../utils/data';
+import { Ban, Camera, Car, ChevronDown, CircleAlert, CircleCheck, Flag, MapPin, Phone, Search, ShieldAlert, Trash2, TriangleAlert, X } from 'lucide-react';
+import { CHECKLIST_QUESTIONS, PROVINCES } from '../utils/data';
 import { normalizePhone, normalizePlate } from '../utils/geo';
 import { loadReports, saveReports } from '../utils/storage';
 import { cloudinaryReady, cloudinaryThumb, compressImage, isValidVnPhone, normalizeVnPhone, searchCommunity, submitCommunityReport, uploadEvidence, validateImageFile } from '../utils/fraudDb';
@@ -20,11 +20,15 @@ interface SearchDraft { query?: string; plate?: string; company?: string; phone?
 function loadDraft0(): SearchDraft { try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || '{}') as SearchDraft; } catch { return {}; } }
 const draft0 = loadDraft0();
 
+const PAGE_SIZE = 10;
+
 export default function SearchTab() {
   const [query, setQuery] = useState(() => draft0.query ?? '');
   const [community, setCommunity] = useState<CommunityFraudEntry[]>([]);
   const [searching, setSearching] = useState(false);
   const [communityDown, setCommunityDown] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [reports, setReports] = useState<PersonalReport[]>(() => loadReports());
   const [plate, setPlate] = useState(() => draft0.plate ?? ''); const [company, setCompany] = useState(() => draft0.company ?? '');
   const [phone, setPhone] = useState(() => draft0.phone ?? ''); const [scamType, setScamType] = useState(() => draft0.scamType ?? SCAM_TYPES[0]);
@@ -73,28 +77,31 @@ export default function SearchTab() {
   // to the built-in list when offline / the community DB is unreachable.
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 3) { setCommunity([]); setSearching(false); setCommunityDown(false); return; }
+    if (q.length < 3) { setCommunity([]); setSearching(false); setCommunityDown(false); setHasMore(false); return; }
     setSearching(true);
+    let live = true;
     const id = window.setTimeout(() => {
-      searchCommunity(q)
-        .then((rows) => { setCommunity(rows); setCommunityDown(false); })
-        .catch(() => { setCommunity([]); setCommunityDown(true); })
-        .finally(() => setSearching(false));
+      searchCommunity(q, PAGE_SIZE, 0)
+        .then((rows) => { if (!live) return; setCommunity(rows); setCommunityDown(false); setHasMore(rows.length === PAGE_SIZE); })
+        .catch(() => { if (!live) return; setCommunity([]); setCommunityDown(true); setHasMore(false); })
+        .finally(() => { if (live) setSearching(false); });
     }, 500);
-    return () => window.clearTimeout(id);
+    return () => { live = false; window.clearTimeout(id); };
   }, [query]);
 
-  const communityPlates = useMemo(() => new Set(community.map((c) => c.plate)), [community]);
-
-  const hits = useMemo(() => {
-    const q = query.trim(); if (!q) return [];
-    const np = normalizePlate(q); const nph = normalizePhone(q);
-    return BLACKLIST_DATABASE.filter((e) =>
-      !communityPlates.has(normalizePlate(e.plate)) &&
-      ((np.length >= 4 && normalizePlate(e.plate).includes(np)) ||
-        e.company.toLowerCase().includes(q.toLowerCase()) ||
-        (nph.length >= 9 && normalizePhone(e.phone) === nph)));
-  }, [query, communityPlates]);
+  // "Xem thêm": fetch the next page of 10 and append — the list grows
+  // a screenful at a time instead of dumping everything at once.
+  const loadMore = async () => {
+    const q = query.trim();
+    if (q.length < 3 || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const rows = await searchCommunity(q, PAGE_SIZE, community.length);
+      setCommunity((prev) => [...prev, ...rows]);
+      setHasMore(rows.length === PAGE_SIZE);
+    } catch { /* keep hasMore on so the tap can be retried */ }
+    setLoadingMore(false);
+  };
 
   const yesCount = Object.values(answers).filter(Boolean).length;
 
@@ -175,7 +182,7 @@ export default function SearchTab() {
           />
         </div>
         {searching && <p className="text-xs text-slate-400">Đang tra trong kho cộng đồng…</p>}
-        {communityDown && query.trim().length >= 3 && <p className="text-[11px] text-slate-500">Chưa kết nối được kho cộng đồng — kết quả dưới đây là danh sách có sẵn trong máy.</p>}
+        {communityDown && query.trim().length >= 3 && <p className="text-[11px] text-slate-500">Chưa kết nối được kho cộng đồng — kiểm tra mạng rồi thử lại.</p>}
 
         {query.trim().length >= 3 && (
           <div>
@@ -193,7 +200,7 @@ export default function SearchTab() {
           </div>
         )}
 
-        {(community.length > 0 || hits.length > 0) && (
+        {community.length > 0 && (
           <div className="bg-panel border border-white/10 rounded-3xl divide-y divide-white/5 overflow-hidden">
             {community.map((c) => (
               <motion.div key={c.plate + c.createdAt} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3.5 flex gap-3">
@@ -202,7 +209,7 @@ export default function SearchTab() {
                     <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
                     <span className="text-white font-extrabold text-[17px] tracking-tight shrink-0">{c.plateDisplay}</span>
                     <span className="text-[13px] text-slate-400 truncate">{c.operatorName || 'Chưa xác định'}</span>
-                    <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-slate-400 shrink-0"><BadgeCheck className="w-3.5 h-3.5 text-emerald-400" /> {c.reportCount}</span>
+                    
                   </p>
                   {(c.scamType || c.area) && (
                     <p className="flex items-center gap-3 text-xs text-slate-300 min-w-0">
@@ -211,6 +218,12 @@ export default function SearchTab() {
                     </p>
                   )}
                   {c.description && <p className="text-xs text-slate-400 leading-4 line-clamp-2">{c.description}</p>}
+                  <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold">
+                    <span className={`inline-flex items-center gap-1 ${c.plateCount >= 3 ? 'text-amber-300' : 'text-slate-400'}`}><Car className="w-3.5 h-3.5" /> Biển số: {c.plateCount} người báo cáo</span>
+                    {c.phoneCount > 0 && (
+                      <span className={`inline-flex items-center gap-1 ${c.phoneCount >= 3 ? 'text-amber-300' : 'text-slate-400'}`}><Phone className="w-3.5 h-3.5" /> SĐT: {c.phoneCount} người báo cáo</span>
+                    )}
+                  </p>
                   <p className="flex items-center gap-1 text-red-400 font-black text-[11px] tracking-wide pt-0.5"><Ban className="w-3.5 h-3.5" /> ĐỪNG LÊN XE NÀY</p>
                 </div>
                 {c.imageUrls.length > 0 && (
@@ -221,26 +234,16 @@ export default function SearchTab() {
                 )}
               </motion.div>
             ))}
-            {hits.map((h) => (
-              <motion.div key={h.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3.5 space-y-1">
-                <p className="flex items-center gap-1.5 min-w-0">
-                  <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
-                  <span className="text-white font-extrabold text-[17px] tracking-tight shrink-0">{h.plate}</span>
-                  <span className="text-[13px] text-slate-400 truncate">{h.company}</span>
-                  <span className={`ml-auto text-[11px] font-black shrink-0 ${h.risk === 'CRITICAL' ? 'text-red-400' : 'text-amber-400'}`}>{h.risk === 'CRITICAL' ? 'CỰC KỲ NGUY HIỂM' : 'RỦI RO CAO'}</span>
-                </p>
-                <p className="flex items-center gap-3 text-xs text-slate-300 min-w-0">
-                  <span className="inline-flex items-center gap-1 shrink-0"><Phone className="w-3.5 h-3.5 text-slate-400" /> {h.phone}</span>
-                  <span className="inline-flex items-center gap-1 min-w-0"><Flag className="w-3.5 h-3.5 text-red-400 shrink-0" /><span className="truncate">Bị báo {h.reports} lần · gần nhất {h.lastSeen}</span></span>
-                </p>
-                {h.reason && <p className="text-xs text-slate-400 leading-4 line-clamp-2">{h.reason}</p>}
-                <p className="flex items-center gap-1 text-red-400 font-black text-[11px] tracking-wide pt-0.5"><Ban className="w-3.5 h-3.5" /> ĐỪNG LÊN XE NÀY</p>
-              </motion.div>
-            ))}
           </div>
         )}
 
-        {query.trim() && hits.length === 0 && community.length === 0 && !searching && (
+        {hasMore && community.length > 0 && (
+          <button onClick={loadMore} disabled={loadingMore} className="w-full py-3.5 rounded-full bg-white/10 text-white font-bold text-sm disabled:opacity-50">
+            {loadingMore ? 'Đang tải…' : 'Xem thêm kết quả'}
+          </button>
+        )}
+
+        {query.trim() && community.length === 0 && !searching && (
           <div className="bg-panel border border-white/10 rounded-3xl p-4 flex gap-2.5">
             <CircleCheck className="w-5 h-5 shrink-0 text-emerald-400" />
             <p className="text-sm text-slate-300">Chưa có cảnh báo cho "{query}". <span className="text-slate-400">Vẫn nên chụp biển số gửi người thân trước khi lên xe.</span></p>
