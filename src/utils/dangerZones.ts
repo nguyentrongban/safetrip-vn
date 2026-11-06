@@ -1,4 +1,5 @@
 import { PUSH_WORKER_URL } from './push';
+import { getDeviceCode } from './consent';
 import { haversineKm } from './geo';
 
 /**
@@ -141,9 +142,34 @@ export async function reportDangerZone(input: ZoneReportInput): Promise<void> {
   });
 }
 
-/** Re-confirm an approved report is still valid (bumps its freshness). */
+const ZONE_CONFIRMED_KEY = 'safetrip_zone_confirmed_v1';
+
+/** Report ids THIS device has already confirmed — remembered on-device
+ * so the button keeps saying "Bạn đã xác nhận rồi" after a reload
+ * (owner 2026-11-06). The server enforces the same rule for counting. */
+export function loadConfirmedZoneIds(): Set<string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ZONE_CONFIRMED_KEY) || '[]') as unknown;
+    return new Set(Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []);
+  } catch { return new Set(); }
+}
+
+function rememberConfirmedZoneId(id: string): void {
+  try {
+    const set = loadConfirmedZoneIds();
+    set.add(id);
+    localStorage.setItem(ZONE_CONFIRMED_KEY, JSON.stringify([...set].slice(-500)));
+  } catch { /* storage blocked */ }
+}
+
+/** Re-confirm an approved report is still valid (bumps its freshness).
+ * ONE confirmation per device per report (owner 2026-11-06): the
+ * anonymous device code rides along so the server counts each
+ * (report, device) pair exactly once, and the id is remembered on this
+ * device so the button stays confirmed across reloads. */
 export async function confirmDangerZone(id: string): Promise<void> {
-  try { await workerPost<unknown>('/zone-confirm', { id }); } catch { /* best effort */ }
+  rememberConfirmedZoneId(id);
+  try { await workerPost<unknown>('/zone-confirm', { id, device: getDeviceCode() }); } catch { /* best effort */ }
 }
 
 // ---------------------------------------------------------------------------
