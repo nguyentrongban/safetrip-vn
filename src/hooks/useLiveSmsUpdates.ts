@@ -3,6 +3,7 @@ import { beep, vibrate } from '../utils/audio';
 import { googleMapsLink, haversineKm } from '../utils/geo';
 import { buildSmsUrl, loadSOS } from '../utils/storage';
 import { liveLink, loadLiveConfig, loadLiveSessionCode } from '../utils/live';
+import { vnTime } from '../utils/vntime';
 
 export const UPDATE_DISTANCE_KM = 1.0;
 export const UPDATE_INTERVAL_MIN = 5;
@@ -40,7 +41,7 @@ export function useLiveSmsUpdates(enabled: boolean, lat: number | null, lng: num
       const cfg = loadSOS();
       const phone = cfg.phone1 || cfg.phone2;
       if (phone) {
-        const time = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        const time = vnTime(Date.now());
         let body = `VỊ TRÍ MỚI của tôi lúc ${time} (xe vẫn đang di chuyển): ${googleMapsLink(p.lat, p.lng)}`;
         const code = loadLiveSessionCode();
         const liveCfg = loadLiveConfig();
