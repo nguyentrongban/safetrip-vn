@@ -13,6 +13,7 @@ import { useLiveSmsUpdates } from './hooks/useLiveSmsUpdates';
 import { useLiveTracking } from './hooks/useLiveTracking';
 import { decodeConfigParam, ensureLiveSession, loadLiveConfig, type LiveConfig } from './utils/live';
 import { buildSmsUrl, buildSosBody, loadSOS, loadTrip } from './utils/storage';
+import { SIM_SPEED_KMH, useSim } from './utils/sim';
 import { APP_VERSION } from './version';
 import type { TabId } from './types';
 
@@ -120,10 +121,19 @@ export default function App() {
     return loadLiveConfig();
   });
   const [tripActive, setTripActive] = useState<boolean>(() => !!loadTrip());
-  const geo = useGeolocation();
+  const geoReal = useGeolocation();
+  const sim = useSim();
+  // Simulation mode (?sim=1, v1.81): while a simulated drive runs, every
+  // screen sees the SIMULATED position instead of the real GPS. Side
+  // effects that could leak a fake position to the outside world are
+  // gated below: no live-relay pushes, no SMS-update prompts, and SOS
+  // triggers do not auto-open the SMS composer.
+  const geo = sim.driving
+    ? { ...geoReal, lat: sim.lat, lng: sim.lng, speedKmh: SIM_SPEED_KMH, accuracy: 12, status: 'granted' as const, error: '' }
+    : geoReal;
   const alarm = useAlarm();
-  const live = useLiveSmsUpdates(alarm.alarming, geo.lat, geo.lng);
-  useLiveTracking(alarm.alarming || tripActive, liveCfg, geo.lat, geo.lng, geo.speedKmh);
+  const live = useLiveSmsUpdates(alarm.alarming && !sim.driving, geo.lat, geo.lng);
+  useLiveTracking((alarm.alarming || tripActive) && !sim.driving, liveCfg, geo.lat, geo.lng, geo.speedKmh);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -222,18 +232,18 @@ export default function App() {
 
   const onSOS = useCallback(() => {
     ensureLiveSession();
-    alarm.triggerSOS('Người dùng giữ nút SOS', geo.lat, geo.lng);
-  }, [alarm, geo.lat, geo.lng]);
+    alarm.triggerSOS('Người dùng giữ nút SOS', geo.lat, geo.lng, !sim.driving);
+  }, [alarm, geo.lat, geo.lng, sim.driving]);
 
   const onBorderAlarm = useCallback((borderName: string) => {
     ensureLiveSession();
-    alarm.triggerSOS(`Áp sát biên giới: ${borderName}`, geo.lat, geo.lng);
-  }, [alarm, geo.lat, geo.lng]);
+    alarm.triggerSOS(`Áp sát biên giới: ${borderName}`, geo.lat, geo.lng, !sim.driving);
+  }, [alarm, geo.lat, geo.lng, sim.driving]);
 
   const onDeadManTimeout = useCallback(() => {
     ensureLiveSession();
-    alarm.triggerSOS("Dead Man's Switch: quá 3 phút không check-in", geo.lat, geo.lng);
-  }, [alarm, geo.lat, geo.lng]);
+    alarm.triggerSOS("Dead Man's Switch: quá 3 phút không check-in", geo.lat, geo.lng, !sim.driving);
+  }, [alarm, geo.lat, geo.lng, sim.driving]);
 
   // Scrub ?sos= from the address bar so a later reload doesn't re-fire.
   useEffect(() => {
@@ -338,15 +348,23 @@ export default function App() {
         </button>
       )}
 
+      {sim.driving && (
+        <div className="block w-full bg-amber-400 text-slate-900 font-bold text-sm py-2.5 px-4 text-center">
+          🧪 ĐANG GIẢ LẬP GPS — vị trí trên màn hình không có thật. Vào tab Giám Sát để dừng giả lập.
+        </div>
+      )}
+
       {alarm.alarming && (
         <div className={`${SHELL} px-4 pt-3`}>
           <div className="bg-red-600 text-white rounded-2xl p-3 font-bold text-sm flex gap-2 items-center">
             <TriangleAlert className="w-6 h-6 shrink-0" />
-            <span>ĐANG BÁO ĐỘNG — {alarm.lastTrigger}. Đã mở sẵn tin nhắn gửi người thân.</span>
+            <span>ĐANG BÁO ĐỘNG — {alarm.lastTrigger}. {sim.driving ? 'Đang giả lập: tin nhắn KHÔNG được mở, không có gì gửi đi thật.' : 'Đã mở sẵn tin nhắn gửi người thân.'}</span>
           </div>
-          <button onClick={reopenSms} className="mt-2 w-full bg-white text-red-700 font-black rounded-2xl py-3.5 text-sm active:scale-[.99] transition">
-            MỞ TIN NHẮN ĐỂ GỬI CHO NGƯỜI THÂN
-          </button>
+          {!sim.driving && (
+            <button onClick={reopenSms} className="mt-2 w-full bg-white text-red-700 font-black rounded-2xl py-3.5 text-sm active:scale-[.99] transition">
+              MỞ TIN NHẮN ĐỂ GỬI CHO NGƯỜI THÂN
+            </button>
+          )}
         </div>
       )}
 
