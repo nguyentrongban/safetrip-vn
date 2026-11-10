@@ -19,6 +19,7 @@ import { ensureLiveSession, loadLiveSessionCode } from '../utils/live';
 import { isPushConfigured, syncDmsDeadline } from '../utils/push';
 import { ZONE_TYPE_META, buildCommuneZones, communeContains, fetchCommuneGeometry, fetchDangerReports, loadCachedReports, type CommuneZone, type DangerReport, type DangerZoneType, type ZoneGeometry } from '../utils/dangerZones';
 import { vnTime } from '../utils/vntime';
+import { SIM_GATE_NAME, startSimDrive, stopSimDrive, useSim } from '../utils/sim';
 import type { PlacePoint, TripConfig } from '../types';
 
 interface Props {
@@ -161,7 +162,8 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
   }, [insideZone, zoneHit, zoneAlertedKey]);
 
   const dms = useDeadMansSwitch(!!trip, onDeadManTimeout);
-  const live = useLiveSmsUpdates(!!trip && !alarming, geo.lat, geo.lng);
+  const sim = useSim();
+  const live = useLiveSmsUpdates(!!trip && !alarming && !sim.driving, geo.lat, geo.lng);
 
   /* Server-side DMS watch (v1.34, on Cloudflare since v1.36): report the
    * check-in deadline to the push Worker, whose cron watcher Web-Pushes a
@@ -178,6 +180,7 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
   const dmsDeadlineMs = dms.deadlineMs;
   useEffect(() => {
     if (!isPushConfigured()) return;
+    if (sim.driving) return; // simulated test trips never sync a deadline to the server
     if (!trip) {
       const code = loadLiveSessionCode();
       if (code) void syncDmsDeadline(code, null);
@@ -188,7 +191,7 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
     sync();
     const id = window.setInterval(sync, 300000);
     return () => window.clearInterval(id);
-  }, [trip, dmsDeadlineMs]);
+  }, [trip, dmsDeadlineMs, sim.driving]);
 
   /* ---------------- predicted route while setting up ---------------- */
   const gpsPoint: PlacePoint | null = geo.lat !== null && geo.lng !== null
@@ -344,6 +347,29 @@ export default function MonitorTab({ geo, onBorderAlarm, onDeadManTimeout, onOpe
     </AnimatePresence>
     <div className="grid gap-4 lg:grid-cols-[1fr_340px] items-start">
       <div className="space-y-3 min-w-0">
+        {sim.enabled && (
+          <div className="rounded-3xl p-4 border-2 border-dashed border-amber-400/70 bg-amber-400/10 space-y-3">
+            <p className="font-black text-amber-300 text-sm">🧪 CHẾ ĐỘ GIẢ LẬP GPS — CHỈ ĐỂ TEST</p>
+            <p className="text-sm text-slate-200">
+              Xe ảo chạy từ cách {SIM_GATE_NAME} khoảng 27 km tiến dần vào cửa khẩu.{' '}
+              {sim.driving
+                ? (sim.done
+                  ? <>Đã tới nơi — đang đậu cách cửa khẩu <b>{formatKm(sim.gateKm)}</b>.</>
+                  : <>Đang chạy… còn <b>{formatKm(sim.gateKm)}</b> tới cửa khẩu.</>)
+                : 'Bấm chạy, rồi bắt đầu một chuyến đi như bình thường (chọn điểm đến là Đức Huệ) — tới gần biên giới là báo động nổ như thật. Báo động nổ thì qua tab SOS tắt báo động, quay lại đây xem xe chạy tiếp.'}
+            </p>
+            <p className="text-xs text-slate-400">Trong lúc giả lập: app không gửi vị trí lên theo dõi trực tiếp, không mở tin nhắn thật, không đồng bộ điểm danh lên máy chủ. Test xong bấm Dừng, rồi kết thúc chuyến đi như thường.</p>
+            {!sim.driving ? (
+              <button onClick={startSimDrive} className="w-full bg-amber-400 text-slate-900 font-black rounded-2xl py-3.5 text-sm active:scale-[.99] transition">
+                <Play className="inline w-4 h-4 mr-1 -mt-0.5" /> CHẠY GIẢ LẬP VỀ {SIM_GATE_NAME.toUpperCase()}
+              </button>
+            ) : (
+              <button onClick={stopSimDrive} className="w-full bg-white text-slate-900 font-black rounded-2xl py-3.5 text-sm active:scale-[.99] transition">
+                <Square className="inline w-4 h-4 mr-1 -mt-0.5" /> DỪNG GIẢ LẬP — VỀ GPS THẬT
+              </button>
+            )}
+          </div>
+        )}
         <MapView lat={geo.lat} lng={geo.lng} route={mapRoute ?? null} dest={mapDest} followUser={followUser} zones={zones} onZoneGroup={(zone, type) => setZoneDetail({ zone, type })} />
         {nearest && nearestLine && (
           <div className={`grid grid-cols-2 gap-2 ${nearBorder ? '' : ''}`}>
